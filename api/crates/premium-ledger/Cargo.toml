@@ -1,0 +1,15 @@
+[package]
+name    = "premium-ledger"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+domain       = { path = "../domain" }
+infra        = { path = "../infra" }
+pas-domain   = { path = "../pas-domain" }
+chrono       = { workspace = true }
+rust_decimal = { version = "1", features = ["serde-with-str"] }
+serde        = { workspace = true }
+sqlx         = { workspace = true }
+thiserror    = { workspace = true }
+uuid         = { workspace = true }

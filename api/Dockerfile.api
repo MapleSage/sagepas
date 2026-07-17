@@ -1,0 +1,17 @@
+FROM rust:1.88-slim-bookworm AS builder
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY . .
+RUN cargo build --release -p api
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system --gid 10001 sagepas \
+ && useradd --system --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin sagepas
+COPY --from=builder /build/target/release/api /usr/local/bin/api
+COPY --from=builder --chown=10001:10001 /build/migrations /app/migrations
+WORKDIR /app
+USER 10001:10001
+EXPOSE 3000
+CMD ["api"]

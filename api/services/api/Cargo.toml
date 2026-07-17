@@ -1,0 +1,49 @@
+[package]
+name    = "api"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "api"
+path = "src/main.rs"
+
+[dependencies]
+domain          = { path = "../../crates/domain" }
+infra           = { path = "../../crates/infra" }
+pricing         = { path = "../../crates/pricing" }
+rating          = { path = "../../crates/rating" }
+documents       = { path = "../../crates/documents" }
+pas-domain      = { path = "../../crates/pas-domain" }
+policy-ledger   = { path = "../../crates/policy-ledger" }
+premium-ledger  = { path = "../../crates/premium-ledger" }
+policy-lock     = { path = "../../crates/policy-lock" }
+oos-orchestrator = { path = "../../crates/oos-orchestrator" }
+event-models    = { path = "../../crates/event-models" }
+event-bus       = { path = "../../crates/event-bus" }
+event-store     = { path = "../../crates/event-store" }
+event-router    = { path = "../../crates/event-router" }
+composite-event-bus = { path = "../../crates/composite-event-bus" }
+event-projector = { path = "../../crates/event-projector" }
+
+anyhow          = { workspace = true }
+async-trait     = "0.1"
+axum            = { workspace = true }
+azure_core      = { workspace = true }
+azure_identity  = { workspace = true }
+chrono          = { workspace = true }
+jsonwebtoken    = { workspace = true }
+reqwest         = { workspace = true }
+serde           = { workspace = true }
+serde_json      = { workspace = true }
+sqlx            = { workspace = true }
+rust_decimal    = { version = "1", features = ["serde-with-str"] }
+tokio           = { workspace = true }
+tower-http      = { workspace = true }
+tracing         = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid            = { workspace = true }
+
+[dev-dependencies]
+async-trait     = "0.1"
+azure_core      = { workspace = true }
+tower           = "0.5"

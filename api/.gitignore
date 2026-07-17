@@ -1,0 +1,36 @@
+# Secrets and local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.csr
+*.kubeconfig
+
+# Rust
+target/
+**/target/
+
+# Node/build leftovers from copied sources
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Archives and generated assets
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rendered.yaml
+
+# Local tooling
+.DS_Store
+.vscode/
+.idea/
+.claw/
+*.log

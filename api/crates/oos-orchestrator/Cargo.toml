@@ -1,0 +1,19 @@
+[package]
+name = "oos-orchestrator"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+domain         = { path = "../domain" }
+policy-ledger  = { path = "../policy-ledger" }
+premium-ledger = { path = "../premium-ledger" }
+infra          = { path = "../infra" }
+chrono         = { workspace = true }
+rust_decimal   = { version = "1", features = ["serde-with-str"] }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+sqlx           = { workspace = true }
+thiserror      = { workspace = true }
+uuid           = { workspace = true }
+tokio          = { workspace = true }
+redis          = { workspace = true }

@@ -1,0 +1,16 @@
+[package]
+name = "event-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = "0.1"
+chrono = { workspace = true }
+event-models = { path = "../event-models" }
+infra = { path = "../infra" }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }

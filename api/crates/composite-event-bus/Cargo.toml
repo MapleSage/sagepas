@@ -1,0 +1,13 @@
+[package]
+name = "composite-event-bus"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = "0.1"
+anyhow = { workspace = true }
+event-models = { path = "../event-models" }
+event-router = { path = "../event-router" }
+event-bus = { path = "../event-bus" }
+event-store = { path = "../event-store" }

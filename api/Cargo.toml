@@ -1,0 +1,55 @@
+[workspace]
+members = [
+  "crates/domain",
+  "crates/infra",
+  "crates/pricing",
+  "crates/documents",
+  "crates/pas-domain",
+  "crates/policy-ledger",
+  "crates/premium-ledger",
+  "crates/oos-orchestrator",
+  "crates/policy-lock",
+  "services/api",
+  "crates/event-models",
+  "crates/event-bus",
+  "crates/event-store",
+  "crates/event-projector",
+  "crates/event-router",
+  "crates/composite-event-bus",
+  "crates/rating",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "UNLICENSED"
+
+[workspace.dependencies]
+anyhow = "1"
+axum = { version = "0.7", features = ["multipart", "ws"] }
+azure_core = "0.20"
+azure_identity = "0.20"
+azure_security_keyvault = "0.20"
+azure_storage_blobs = "0.20"
+base64 = "0.22"
+hex = "0.4"
+bytes = "1"
+chrono = { version = "0.4", features = ["serde", "clock"] }
+envy = "0.4"
+jsonwebtoken = "9"
+printpdf = "0.7"
+redis = { version = "0.25", features = ["tokio-comp", "connection-manager"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "derive", "migrate"] }
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+validator = { version = "0.18", features = ["derive"] }
+regex = "1"
