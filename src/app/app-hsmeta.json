@@ -2,8 +2,8 @@
   "uid": "sagesure_pas_app",
   "type": "app",
   "config": {
-    "description": "SageSure-US Policy Administration integration for US customer, quote, policy, renewal, payment, claim, and agent workflows.",
-    "name": "SagePAS",
+    "description": "SageSure operations integration for PAS, FNOL, claims, and underwriting workflows across SagePAS, SageSure App, FNOL, and UW Workbench.",
+    "name": "SageSure Operations",
     "distribution": "private",
     "auth": {
       "type": "static",
@@ -25,16 +25,22 @@
         "https://api.hubapi.com"
       ],
       "iframe": [
-        "https://pas.sagesure.io"
+        "https://pas.sagesure.io",
+        "https://app.sagesure.io",
+        "https://fnol.sagesure.io",
+        "https://uw.sagesure.io"
       ],
       "img": [
-        "https://pas.sagesure.io"
+        "https://pas.sagesure.io",
+        "https://app.sagesure.io",
+        "https://fnol.sagesure.io",
+        "https://uw.sagesure.io"
       ]
     },
     "support": {
       "supportEmail": "pdutta@sagesure.io",
-      "documentationUrl": "https://pas.sagesure.io/",
-      "supportUrl": "https://pas.sagesure.io/"
+      "documentationUrl": "https://app.sagesure.io/",
+      "supportUrl": "https://app.sagesure.io/"
     }
   }
 }
