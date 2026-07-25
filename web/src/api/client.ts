@@ -6,6 +6,57 @@
 
 type TokenProvider = () => Promise<string | null>
 
+export type HubSpotObjectType = 'contact' | 'company' | 'deal' | 'ticket'
+
+export type HubSpotContextIdentity = {
+  portalId: number
+  objectType: HubSpotObjectType
+  objectId: string
+}
+
+export type ParsedHubSpotContext = {
+  context: HubSpotContextIdentity | null
+  error: string | null
+}
+
+const HUBSPOT_OBJECT_PARAMS: ReadonlyArray<[HubSpotObjectType, string]> = [
+  ['contact', 'hubspotContactId'],
+  ['company', 'hubspotCompanyId'],
+  ['deal', 'hubspotDealId'],
+  ['ticket', 'hubspotTicketId'],
+]
+
+export function parseHubSpotContext(search: string): ParsedHubSpotContext {
+  const params = new URLSearchParams(search)
+  const portalValues = params.getAll('hubspotPortalId')
+  const objectValues = HUBSPOT_OBJECT_PARAMS.flatMap(([objectType, parameter]) =>
+    params.getAll(parameter).map(objectId => ({ objectType, objectId: objectId.trim() })),
+  )
+  const hasContextParameters = portalValues.length > 0 || objectValues.length > 0
+
+  if (!hasContextParameters) return { context: null, error: null }
+  if (portalValues.length !== 1) {
+    return { context: null, error: 'HubSpot context requires exactly one hubspotPortalId.' }
+  }
+  if (objectValues.length !== 1) {
+    return { context: null, error: 'HubSpot context requires exactly one Contact, Company, Deal, or Ticket ID.' }
+  }
+
+  const portalText = portalValues[0].trim()
+  const portalId = Number(portalText)
+  if (!/^\d+$/.test(portalText) || !Number.isSafeInteger(portalId) || portalId <= 0) {
+    return { context: null, error: 'HubSpot portal ID must be a positive integer.' }
+  }
+
+  const [{ objectType, objectId }] = objectValues
+  if (!objectId) return { context: null, error: `HubSpot ${objectType} ID must not be empty.` }
+  return { context: { portalId, objectType, objectId }, error: null }
+}
+
+export function hubSpotObjectLabel(objectType: HubSpotObjectType): string {
+  return objectType[0].toUpperCase() + objectType.slice(1)
+}
+
 let tokenProvider: TokenProvider | null = null
 let currentUserId: string | null = null
 
@@ -56,8 +107,18 @@ export const pasApi = {
   bind: (id:string) => request(`/quotes/${encodeURIComponent(id)}/bind`, { method:'POST' }),
   issueQuote: (id:string) => request(`/quotes/${encodeURIComponent(id)}/issue`, { method:'POST' }),
   timeline: (id:string) => request(`/quotes/${encodeURIComponent(id)}/timeline`),
+  hubspotContext: ({portalId,objectType,objectId}:HubSpotContextIdentity) => request(`/hubspot/context/${encodeURIComponent(portalId)}/${encodeURIComponent(objectType)}/${encodeURIComponent(objectId)}`),
+  linkHubspotContext: ({portalId,objectType,objectId}:HubSpotContextIdentity, body:any) => request(`/hubspot/context/${encodeURIComponent(portalId)}/${encodeURIComponent(objectType)}/${encodeURIComponent(objectId)}`, { method:'PUT', body:JSON.stringify(body) }),
   policies: () => request('/policies'), policy: (id:string) => request(`/policies/${encodeURIComponent(id)}`),
   versions: (id:string) => request(`/policies/${encodeURIComponent(id)}/versions`),
+  payments: (id:string) => request(`/policies/${encodeURIComponent(id)}/payments`),
+  createPayment: (id:string, body:any) => request(`/policies/${encodeURIComponent(id)}/payments`, { method:'POST', body:JSON.stringify(body) }),
+  claims: (id:string) => request(`/policies/${encodeURIComponent(id)}/claims`),
+  createClaim: (id:string, body:any) => request(`/policies/${encodeURIComponent(id)}/claims`, { method:'POST', body:JSON.stringify(body) }),
+  notifications: (id:string) => request(`/policies/${encodeURIComponent(id)}/notifications`),
+  transactions: (id:string) => request(`/policies/${encodeURIComponent(id)}/transactions`),
+  renewals: (id:string) => request(`/policies/${encodeURIComponent(id)}/renewals`),
+  createRenewal: (id:string) => request(`/policies/${encodeURIComponent(id)}/renewals`, { method:'POST' }),
   endorse: (body:any) => request('/pas/endorse', { method:'POST', body:JSON.stringify(body) }),
   cancel: (body:any) => request('/pas/cancel', { method:'POST', body:JSON.stringify(body) }),
   reinstate: (body:any) => request('/pas/reinstate', { method:'POST', body:JSON.stringify(body) }),

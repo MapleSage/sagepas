@@ -56,6 +56,7 @@ impl RatingProvider for PasProvider {
         {
             "INR" => Currency::Inr,
             "USD" => Currency::Usd,
+            "AED" => Currency::Aed,
             other => {
                 return Err(RatingError::MappingFailed(format!(
                     "unsupported pricing currency: {other}"
@@ -96,5 +97,88 @@ impl RatingProvider for PasProvider {
             version: "1.0.0".to_string(),
             execution_mode: ExecutionMode::Pas,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn request(carrier_id: &str, pricing: serde_json::Value) -> RatingRequest {
+        RatingRequest {
+            carrier_id: carrier_id.to_string(),
+            product_id: "auto-us".to_string(),
+            state: "TX".to_string(),
+            risk: serde_json::json!({ "pricing": pricing }),
+        }
+    }
+
+    #[tokio::test]
+    async fn promotes_native_pricing_without_recalculating_premium() {
+        let provider = PasProvider::new();
+        let result = provider
+            .rate(request(
+                "sagesure_pas",
+                serde_json::json!({
+                    "base_rate": 1_500.0,
+                    "final_premium": 1_800.0,
+                    "currency": "USD",
+                    "factors": [{
+                        "name": "vehicle_value",
+                        "value": 1.2,
+                        "description": "Vehicle value factor"
+                    }]
+                }),
+            ))
+            .await
+            .expect("native pricing should produce a quote");
+
+        assert!(matches!(result.decision, RatingDecision::Quoted));
+        let premium = result.premium.expect("quoted result must contain premium");
+        assert_eq!(premium.base_rate, 1_500.0);
+        assert_eq!(premium.final_premium, 1_800.0);
+        assert_eq!(result.provider.id, "pas:native:v1");
+    }
+
+    #[tokio::test]
+    async fn rejects_missing_native_pricing() {
+        let provider = PasProvider::new();
+        let error = provider
+            .rate(RatingRequest {
+                carrier_id: "pas".to_string(),
+                product_id: "auto-us".to_string(),
+                state: "TX".to_string(),
+                risk: serde_json::json!({}),
+            })
+            .await
+            .expect_err("pricing evidence is required");
+
+        assert!(matches!(error, RatingError::NotSupported { .. }));
+    }
+
+    #[tokio::test]
+    async fn rejects_non_positive_premium() {
+        let provider = PasProvider::new();
+        let error = provider
+            .rate(request(
+                "pas",
+                serde_json::json!({
+                    "base_rate": 100.0,
+                    "final_premium": 0.0,
+                    "currency": "USD"
+                }),
+            ))
+            .await
+            .expect_err("zero premium must not be quoted");
+
+        assert!(matches!(error, RatingError::MappingFailed(_)));
+    }
+
+    #[test]
+    fn supports_only_native_pas_carrier_aliases() {
+        let provider = PasProvider::new();
+        assert!(provider.supports(&request("pas", serde_json::json!({}))));
+        assert!(provider.supports(&request("SAGESURE_PAS", serde_json::json!({}))));
+        assert!(!provider.supports(&request("unconfigured_carrier", serde_json::json!({}))));
     }
 }

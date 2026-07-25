@@ -593,6 +593,8 @@ async fn append_policy_version(
 fn currency_from_code(code: &str) -> Currency {
     if code.eq_ignore_ascii_case("INR") {
         Currency::Inr
+    } else if code.eq_ignore_ascii_case("AED") {
+        Currency::Aed
     } else {
         Currency::Usd
     }

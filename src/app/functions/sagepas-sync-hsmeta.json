@@ -1,0 +1,12 @@
+{
+  "uid": "sagesure_pas_hubspot_sync",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/SagePasSync.js",
+    "endpoint": {
+      "path": "/api/sagepas-sync",
+      "methods": ["POST"]
+    },
+    "secretKeys": ["SAGEPAS_SYNC_SECRET"]
+  }
+}

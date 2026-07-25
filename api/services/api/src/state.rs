@@ -27,6 +27,15 @@ pub struct AppState {
     pub event_store_backend: String,
     pub projector_bootstrap_event_count: u64,
     pub projector_bootstrap_at: Option<String>,
+    /// Full internal bridge ingestion URL. This is integration configuration,
+    /// never a HubSpot credential and never returned from an API response.
+    pub hubspot_bridge_url: Option<String>,
+    /// Dedicated shared secret for the internal bridge boundary. It is held in
+    /// process memory only and is never persisted or serialized.
+    pub hubspot_bridge_secret: Option<String>,
+    pub hubspot_http_client: reqwest::Client,
+    /// Wakes the durable dispatcher after a transaction commits new work.
+    pub hubspot_dispatch_notify: Arc<tokio::sync::Notify>,
     /// Microsoft Entra token validator — `None` when `AZURE_ENTRA_TENANT_ID`
     /// / `AZURE_ENTRA_AUDIENCE` are not configured.
     pub entra_validator: Option<Arc<infra::entra_auth::EntraValidator>>,

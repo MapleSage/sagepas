@@ -56,6 +56,7 @@ pub async fn estimate(
     let currency = match calc.currency {
         domain::insurance::Currency::Inr => "INR",
         domain::insurance::Currency::Usd => "USD",
+        domain::insurance::Currency::Aed => "AED",
     };
 
     Ok(Json(EstimateResponse {

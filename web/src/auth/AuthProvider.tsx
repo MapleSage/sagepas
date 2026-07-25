@@ -29,6 +29,8 @@ function AuthProviderInner({ children, apiScope }: { children: ReactNode; apiSco
   const { instance, accounts, inProgress } = useMsal()
   const account = accounts[0] ?? null
   const [roles, setRoles] = useState<PasRole[]>([])
+  const [rolesReady, setRolesReady] = useState(false)
+  const [tokenProviderReady, setTokenProviderReady] = useState(false)
 
   function rolesFromAccessToken(token: string): PasRole[] {
     try {
@@ -44,10 +46,16 @@ function AuthProviderInner({ children, apiScope }: { children: ReactNode; apiSco
   }
 
   useEffect(() => {
-    if (!account) { setRoles([]); return }
+    setRolesReady(false)
+    if (!account) {
+      setRoles([])
+      setRolesReady(true)
+      return
+    }
     instance.acquireTokenSilent({ scopes: [apiScope], account })
       .then(result => setRoles(rolesFromAccessToken(result.accessToken)))
       .catch(() => setRoles([]))
+      .finally(() => setRolesReady(true))
   }, [instance, account, apiScope])
 
   useEffect(() => {
@@ -55,6 +63,7 @@ function AuthProviderInner({ children, apiScope }: { children: ReactNode; apiSco
   }, [account])
 
   useEffect(() => {
+    setTokenProviderReady(false)
     setTokenProvider(
       account
         ? async () => {
@@ -71,7 +80,11 @@ function AuthProviderInner({ children, apiScope }: { children: ReactNode; apiSco
           }
         : null,
     )
-    return () => setTokenProvider(null)
+    setTokenProviderReady(true)
+    return () => {
+      setTokenProvider(null)
+      setTokenProviderReady(false)
+    }
   }, [instance, account, apiScope])
 
   const signIn = () => instance.loginRedirect({ scopes: ['openid', 'profile', apiScope] })
@@ -83,7 +96,10 @@ function AuthProviderInner({ children, apiScope }: { children: ReactNode; apiSco
     <AuthContext.Provider
       value={{
         isAuthenticated: accounts.length > 0,
-        isLoading: inProgress !== 'none',
+        // Do not mount API-consuming screens until their bearer-token provider
+        // is installed. Without this gate, child effects race the parent effect
+        // after an Entra redirect and send unauthenticated first requests.
+        isLoading: inProgress !== 'none' || (!!account && (!tokenProviderReady || !rolesReady)),
         account,
         roles,
         socialProviders: getSocialProviders(),

@@ -91,6 +91,7 @@ fn generate_us_declaration(
     let currency_sym = match policy.currency {
         Currency::Usd => "$",
         Currency::Inr => "Rs",
+        Currency::Aed => "AED",
     };
 
     // ── Header ───────────────────────────────────────────────────────────────

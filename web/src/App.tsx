@@ -180,8 +180,8 @@ function DashboardPage({ onNavigate }: { onNavigate: (path: string) => void }) {
       const policies = Array.isArray(policyBody) ? policyBody : (policyBody?.items || policyBody?.policies || [])
       setMetrics({
         quotes: quotes.length,
-        quoted: quotes.filter((q: any) => String(q.status || '').toUpperCase() === 'QUOTED').length,
-        bound: quotes.filter((q: any) => String(q.status || '').toUpperCase() === 'BOUND').length,
+        quoted: quotes.filter((q: any) => ['QUICK_QUOTE', 'QUOTED'].includes(String(q.state || q.status || '').toUpperCase())).length,
+        bound: quotes.filter((q: any) => String(q.state || q.status || '').toUpperCase() === 'BOUND').length,
         policies: policies.length,
       })
       setAvailable(true)

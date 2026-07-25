@@ -1,0 +1,40 @@
+{
+  "uid": "sagesure_pas_app",
+  "type": "app",
+  "config": {
+    "description": "SageSure-US Policy Administration integration for US customer, quote, policy, renewal, payment, claim, and agent workflows.",
+    "name": "SagePAS",
+    "distribution": "private",
+    "auth": {
+      "type": "static",
+      "requiredScopes": [
+        "oauth",
+        "crm.objects.contacts.read",
+        "crm.objects.contacts.write",
+        "crm.objects.companies.read",
+        "crm.objects.companies.write",
+        "crm.objects.deals.read",
+        "crm.objects.deals.write",
+        "tickets"
+      ],
+      "optionalScopes": [],
+      "conditionallyRequiredScopes": []
+    },
+    "permittedUrls": {
+      "fetch": [
+        "https://api.hubapi.com"
+      ],
+      "iframe": [
+        "https://pas.sagesure.io"
+      ],
+      "img": [
+        "https://pas.sagesure.io"
+      ]
+    },
+    "support": {
+      "supportEmail": "pdutta@sagesure.io",
+      "documentationUrl": "https://pas.sagesure.io/",
+      "supportUrl": "https://pas.sagesure.io/"
+    }
+  }
+}

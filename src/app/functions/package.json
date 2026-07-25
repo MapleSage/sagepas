@@ -1,0 +1,11 @@
+{
+  "name": "sagesure-pas-hubspot-sync",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test SagePasSync.test.js"
+  },
+  "dependencies": {
+    "@hubspot/api-client": "^12.1.0"
+  }
+}

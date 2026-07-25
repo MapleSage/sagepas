@@ -120,6 +120,27 @@ async fn main() -> anyhow::Result<()> {
         )
     };
 
+    let hubspot_bridge_url = std::env::var("HUBSPOT_BRIDGE_URL")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let hubspot_bridge_secret = std::env::var("HUBSPOT_BRIDGE_SECRET")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if hubspot_bridge_url.is_none() || hubspot_bridge_secret.is_none() {
+        warn!(
+            bridge_url_configured = hubspot_bridge_url.is_some(),
+            bridge_secret_configured = hubspot_bridge_secret.is_some(),
+            "HubSpot bridge integration is fail-closed until both environment values are configured"
+        );
+    }
+    let hubspot_http_client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(3))
+        .timeout(std::time::Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+
     let app_state = AppState {
         db: db.clone(),
         config: config.clone(),
@@ -135,10 +156,16 @@ async fn main() -> anyhow::Result<()> {
         event_store_backend,
         projector_bootstrap_event_count: bootstrap.event_count as u64,
         projector_bootstrap_at: bootstrap.replayed_at,
+        hubspot_bridge_url,
+        hubspot_bridge_secret,
+        hubspot_http_client,
+        hubspot_dispatch_notify: Arc::new(tokio::sync::Notify::new()),
         entra_validator,
     };
 
-    let app = Router::new()
+    tokio::spawn(handlers::hubspot::run_outbox_dispatcher(app_state.clone()));
+
+    let authenticated_routes = Router::new()
         .route("/health", get(health))
         .route("/api/v1/health", get(health))
         .route("/api/v1/eventing/status", get(handlers::eventing::status))
@@ -179,6 +206,18 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/policies", get(handlers::policies::list_policies))
         .route("/api/v1/policies/:id", get(handlers::policies::get_policy))
         .route(
+            "/api/v1/hubspot/context/:portal_id/:object_type/:object_id",
+            get(handlers::hubspot::get_context).put(handlers::hubspot::upsert_context),
+        )
+        .route(
+            "/api/v1/hubspot/sync/:portal_id/:object_type/:object_id",
+            get(handlers::hubspot::get_sync_status),
+        )
+        .route(
+            "/api/v1/hubspot/sync/:portal_id/:object_type/:object_id/retry",
+            post(handlers::hubspot::retry_sync),
+        )
+        .route(
             "/api/v1/policies/:id/versions",
             get(handlers::policies::get_policy_versions),
         )
@@ -189,6 +228,29 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/v1/policies/:id/document",
             get(handlers::policies::get_policy_document),
+        )
+        .route(
+            "/api/v1/policies/:id/payments",
+            get(handlers::policy_workspace::list_payments)
+                .post(handlers::policy_workspace::create_payment),
+        )
+        .route(
+            "/api/v1/policies/:id/claims",
+            get(handlers::policy_workspace::list_claims)
+                .post(handlers::policy_workspace::create_claim),
+        )
+        .route(
+            "/api/v1/policies/:id/notifications",
+            get(handlers::policy_workspace::list_notifications),
+        )
+        .route(
+            "/api/v1/policies/:id/transactions",
+            get(handlers::policy_workspace::list_transactions),
+        )
+        .route(
+            "/api/v1/policies/:id/renewals",
+            get(handlers::policy_workspace::list_renewals)
+                .post(handlers::policy_workspace::create_renewal),
         )
         .route(
             "/api/v1/pas/endorse",
@@ -231,7 +293,21 @@ async fn main() -> anyhow::Result<()> {
         .layer(axum_middleware::from_fn_with_state(
             app_state.clone(),
             middleware::require_auth,
-        ))
+        ));
+
+    let internal_hubspot_routes = Router::new().route(
+        "/api/v1/internal/hubspot/cache/:portal_id/:object_type/:object_id",
+        post(handlers::hubspot::cache_inbound_properties).route_layer(
+            axum_middleware::from_fn_with_state(
+                app_state.clone(),
+                handlers::hubspot::require_bridge_secret,
+            ),
+        ),
+    );
+
+    let app = Router::new()
+        .merge(authenticated_routes)
+        .merge(internal_hubspot_routes)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);

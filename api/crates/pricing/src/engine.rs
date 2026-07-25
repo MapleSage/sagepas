@@ -6,7 +6,7 @@ use tracing::{debug, warn};
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PremiumRequest {
     pub insurance_type: InsuranceType,
-    /// ISO 3166-1 alpha-2 country code: "US" or "IN".
+    /// ISO 3166-1 alpha-2 country code (currently US, IN, or AE).
     pub country: String,
     /// US state code (e.g. "CT", "CA") for state-level rating.
     pub state_code: Option<String>,
@@ -114,6 +114,8 @@ fn build_query(req: &PremiumRequest) -> String {
 fn currency_for_country(country: &str) -> Currency {
     if country.eq_ignore_ascii_case("IN") {
         Currency::Inr
+    } else if country.eq_ignore_ascii_case("AE") {
+        Currency::Aed
     } else {
         Currency::Usd
     }
@@ -128,6 +130,8 @@ fn default_rates(req: &PremiumRequest) -> (f64, Vec<RateFactor>) {
             // $1 200 / yr base for US auto
             let base = if req.country.eq_ignore_ascii_case("IN") {
                 800.0_f64 // ₹800 base
+            } else if req.country.eq_ignore_ascii_case("AE") {
+                1500.0_f64 // AED 1,500 base
             } else {
                 1200.0_f64
             };
@@ -145,6 +149,8 @@ fn default_rates(req: &PremiumRequest) -> (f64, Vec<RateFactor>) {
             // $500 / yr base; age band factors
             let base = if req.country.eq_ignore_ascii_case("IN") {
                 400.0_f64
+            } else if req.country.eq_ignore_ascii_case("AE") {
+                650.0_f64
             } else {
                 500.0_f64
             };
@@ -166,6 +172,8 @@ fn default_rates(req: &PremiumRequest) -> (f64, Vec<RateFactor>) {
         InsuranceType::Health => {
             let base = if req.country.eq_ignore_ascii_case("IN") {
                 600.0
+            } else if req.country.eq_ignore_ascii_case("AE") {
+                1800.0
             } else {
                 1500.0
             };
@@ -233,4 +241,33 @@ fn extract_factors(results: Vec<infra::search::SearchResult>) -> Vec<RateFactor>
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn uae_auto_request() -> PremiumRequest {
+        PremiumRequest {
+            insurance_type: InsuranceType::Auto,
+            country: "AE".to_string(),
+            state_code: Some("DU".to_string()),
+            coverage_amount: 100_000.0,
+            customer_age: Some(35),
+            vehicle_value: Some(80_000.0),
+        }
+    }
+
+    #[test]
+    fn uae_requests_use_aed() {
+        assert_eq!(currency_for_country("AE"), Currency::Aed);
+        assert_eq!(currency_for_country("ae"), Currency::Aed);
+    }
+
+    #[test]
+    fn uae_auto_has_aed_specific_base_rate() {
+        let (base_rate, factors) = default_rates(&uae_auto_request());
+        assert_eq!(base_rate, 1500.0);
+        assert!(!factors.is_empty());
+    }
 }

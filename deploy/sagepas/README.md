@@ -14,7 +14,12 @@ Required before rendering/apply:
 
 ```bash
 kubectl --context aks-openclaw-cid -n sagepas create secret generic sagepas-secrets \
-  --from-literal=DATABASE_URL="$DATABASE_URL"
+  --from-literal=DATABASE_URL="$DATABASE_URL" \
+  --from-literal=HUBSPOT_BRIDGE_SECRET="$HUBSPOT_BRIDGE_SECRET"
+
+`HUBSPOT_BRIDGE_SECRET` must match the HubSpot project secret
+`SAGEPAS_SYNC_SECRET`. Never commit either value. Preserve and merge the
+existing Kubernetes Secret when rotating or adding keys.
 ```
 
 Render:

@@ -34,6 +34,7 @@ pub enum InsuranceType {
 pub enum Currency {
     Usd,
     Inr,
+    Aed,
 }
 
 /// Lifecycle state of a quote.
@@ -65,7 +66,7 @@ pub struct Customer {
     pub name: String,
     pub email: String,
     pub phone: String,
-    /// ISO 3166-1 alpha-2 country code: "US" or "IN".
+    /// ISO 3166-1 alpha-2 country code (currently US, IN, or AE).
     pub country: String,
     pub currency: Currency,
     pub national_id: Option<String>,

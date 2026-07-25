@@ -58,6 +58,17 @@ pub fn migration_registry() -> anyhow::Result<(PathBuf, Vec<String>)> {
 
 pub async fn run_startup_migrations(pool: &DbPool) -> anyhow::Result<MigrationRunSummary> {
     let (dir, files) = migration_registry()?;
+    let mut tx = pool
+        .begin()
+        .await
+        .context("failed beginning startup migration transaction")?;
+
+    // Multiple API replicas can start together. Serialize application so only one
+    // replica can observe and apply a new migration at a time.
+    sqlx::query("SELECT pg_advisory_xact_lock(753217007)")
+        .execute(&mut *tx)
+        .await
+        .context("failed acquiring startup migration advisory lock")?;
 
     sqlx::query(
         r#"
@@ -68,7 +79,7 @@ pub async fn run_startup_migrations(pool: &DbPool) -> anyhow::Result<MigrationRu
         )
         "#,
     )
-    .execute(&**pool)
+    .execute(&mut *tx)
     .await
     .context("failed creating schema_migration_registry")?;
 
@@ -84,7 +95,7 @@ pub async fn run_startup_migrations(pool: &DbPool) -> anyhow::Result<MigrationRu
             "SELECT checksum FROM schema_migration_registry WHERE file_name = $1",
         )
         .bind(file_name)
-        .fetch_optional(&**pool)
+        .fetch_optional(&mut *tx)
         .await
         .with_context(|| format!("failed lookup for migration {file_name}"))?;
 
@@ -101,19 +112,23 @@ pub async fn run_startup_migrations(pool: &DbPool) -> anyhow::Result<MigrationRu
         }
 
         sqlx::raw_sql(&sql)
-            .execute(&**pool)
+            .execute(&mut *tx)
             .await
             .with_context(|| format!("failed applying migration {file_name}"))?;
 
         sqlx::query("INSERT INTO schema_migration_registry (file_name, checksum) VALUES ($1, $2)")
             .bind(file_name)
             .bind(&sum)
-            .execute(&**pool)
+            .execute(&mut *tx)
             .await
             .with_context(|| format!("failed writing migration registry for {file_name}"))?;
 
         applied_now += 1;
     }
+
+    tx.commit()
+        .await
+        .context("failed committing startup migrations")?;
 
     Ok(MigrationRunSummary {
         count: files.len(),

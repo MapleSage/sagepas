@@ -1,0 +1,10 @@
+{
+  "uid": "sagesure_pas_ticket_card",
+  "type": "card",
+  "config": {
+    "name": "SagePAS Claims and Servicing",
+    "location": "crm.record.tab",
+    "entrypoint": "/app/cards/TicketServicingCard.tsx",
+    "objectTypes": ["tickets"]
+  }
+}

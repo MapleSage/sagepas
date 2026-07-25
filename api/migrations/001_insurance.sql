@@ -1,4 +1,5 @@
--- Standalone SagePAS base schema.
+-- Insurance platform schema migration 001
+-- Creates all tables for the SageSure US/India insurance platform.
 
 CREATE TABLE IF NOT EXISTS users (
     id            UUID PRIMARY KEY,
@@ -61,6 +62,19 @@ CREATE TABLE IF NOT EXISTS policies (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS claims (
+    id              UUID PRIMARY KEY,
+    policy_id       UUID NOT NULL REFERENCES policies(id),
+    customer_id     UUID NOT NULL REFERENCES customers(id),
+    fnol_process_id TEXT,
+    state           TEXT NOT NULL DEFAULT 'filed',
+    amount          DOUBLE PRECISION NOT NULL DEFAULT 0,
+    currency        TEXT NOT NULL DEFAULT 'USD',
+    description     TEXT NOT NULL DEFAULT '',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS agents (
     id                  UUID PRIMARY KEY,
     name                TEXT NOT NULL,
@@ -68,6 +82,16 @@ CREATE TABLE IF NOT EXISTS agents (
     commission_rate_pct DOUBLE PRECISION NOT NULL DEFAULT 5.0,
     country             TEXT NOT NULL DEFAULT 'US',
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS commissions (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agent_id    UUID NOT NULL REFERENCES agents(id),
+    policy_id   UUID NOT NULL REFERENCES policies(id),
+    amount      DOUBLE PRECISION NOT NULL,
+    currency    TEXT NOT NULL DEFAULT 'USD',
+    paid_at     TIMESTAMPTZ,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Seed default products (idempotent)

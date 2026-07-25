@@ -18,7 +18,14 @@ export default function LoginGate({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  if (isAuthenticated) return <>{children}</>
+  if (isAuthenticated && !isLoading) return <>{children}</>
+  if (isAuthenticated) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: D.bg, color: D.text }}>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>Preparing your SagePAS workspace…</div>
+      </div>
+    )
+  }
 
   async function handleSignIn(authority?: string) {
     setBusy(true)

@@ -1,0 +1,10 @@
+{
+  "uid": "sagesure_pas_card",
+  "type": "card",
+  "config": {
+    "name": "SagePAS Policy Administration",
+    "location": "crm.record.tab",
+    "entrypoint": "/app/cards/SagePasCard.tsx",
+    "objectTypes": ["contacts"]
+  }
+}
