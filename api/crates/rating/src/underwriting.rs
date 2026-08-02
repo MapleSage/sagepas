@@ -428,6 +428,140 @@ pub fn evaluate_property(profile: &PropertyRiskProfile) -> UnderwritingResult {
     ])
 }
 
+/// The subset of a risk profile Life underwriting evaluates.
+#[derive(Debug, Clone, Default)]
+pub struct LifeRiskProfile {
+    pub applicant_age: Option<u32>,
+    /// Same cross-line signal Auto and Property use.
+    pub prior_claims_5y: Option<i64>,
+    pub coverage_amount: Option<f64>,
+}
+
+/// Evaluate applicant age eligibility and age-band loading for a life policy.
+fn evaluate_life_age(age: Option<u32>) -> FactorResult {
+    match age {
+        None => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.0,
+                description: Some("applicant age not provided".into()),
+            },
+            outcome: FactorOutcome::Refer,
+            reason: Some("applicant age is required to rate a life risk".into()),
+        },
+        Some(age) if age < 18 => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.0,
+                description: Some(format!("age {age} below minimum insurable age")),
+            },
+            outcome: FactorOutcome::Decline,
+            reason: Some(format!(
+                "applicant age {age} is below the minimum insurable age of 18"
+            )),
+        },
+        Some(age) if age <= 65 => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.0,
+                description: Some(format!("standard age band, age {age}")),
+            },
+            outcome: FactorOutcome::Accept,
+            reason: None,
+        },
+        Some(age) if age <= 75 => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.4,
+                description: Some(format!("senior surcharge, age {age}")),
+            },
+            outcome: FactorOutcome::Accept,
+            reason: None,
+        },
+        Some(age) if age <= 85 => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.4,
+                description: Some(format!("age {age} above 75")),
+            },
+            outcome: FactorOutcome::Refer,
+            reason: Some(format!(
+                "applicant age {age} is above 75 and requires medical underwriting review"
+            )),
+        },
+        Some(age) => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.4,
+                description: Some(format!("age {age} above 85")),
+            },
+            outcome: FactorOutcome::Decline,
+            reason: Some(format!(
+                "applicant age {age} is above 85 and exceeds this line's insurable age limit"
+            )),
+        },
+    }
+}
+
+/// Evaluate requested coverage (face amount) band. This is a standard
+/// life-insurance proxy: small face amounts can be issued without a medical
+/// exam, larger ones need medical underwriting, and very large ones need
+/// specialist/reinsurance placement — none of which this estate does today.
+fn evaluate_life_coverage_band(coverage_amount: Option<f64>) -> FactorResult {
+    match coverage_amount {
+        None | Some(0.0) => FactorResult {
+            factor: RateFactor {
+                name: "coverage_band".into(),
+                value: 1.0,
+                description: Some("coverage amount not provided".into()),
+            },
+            outcome: FactorOutcome::Refer,
+            reason: Some("coverage amount is required to rate a life risk".into()),
+        },
+        Some(amount) if amount <= 250_000.0 => FactorResult {
+            factor: RateFactor {
+                name: "coverage_band".into(),
+                value: 1.0,
+                description: Some(format!("guaranteed-issue band, ${amount:.0}")),
+            },
+            outcome: FactorOutcome::Accept,
+            reason: None,
+        },
+        Some(amount) if amount <= 1_000_000.0 => FactorResult {
+            factor: RateFactor {
+                name: "coverage_band".into(),
+                value: 1.0,
+                description: Some(format!("${amount:.0} above guaranteed-issue limit")),
+            },
+            outcome: FactorOutcome::Refer,
+            reason: Some(format!(
+                "requested coverage ${amount:.0} exceeds the $250,000 guaranteed-issue limit and requires medical underwriting"
+            )),
+        },
+        Some(amount) => FactorResult {
+            factor: RateFactor {
+                name: "coverage_band".into(),
+                value: 1.0,
+                description: Some(format!("${amount:.0} above $1,000,000")),
+            },
+            outcome: FactorOutcome::Decline,
+            reason: Some(format!(
+                "requested coverage ${amount:.0} exceeds $1,000,000 and requires specialist reinsurance placement"
+            )),
+        },
+    }
+}
+
+/// Evaluate the full Life risk profile against all factors and aggregate
+/// to a single decision.
+pub fn evaluate_life(profile: &LifeRiskProfile) -> UnderwritingResult {
+    aggregate(vec![
+        evaluate_life_age(profile.applicant_age),
+        evaluate_prior_claims(profile.prior_claims_5y),
+        evaluate_life_coverage_band(profile.coverage_amount),
+    ])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -607,5 +741,92 @@ mod tests {
         let result = evaluate_property(&profile);
         assert_eq!(result.decision, UnderwritingDecision::Referred);
         assert!(result.reasons[0].contains("over-insurance"));
+    }
+
+    fn base_life_profile() -> LifeRiskProfile {
+        LifeRiskProfile {
+            applicant_age: Some(40),
+            prior_claims_5y: Some(0),
+            coverage_amount: Some(150_000.0),
+        }
+    }
+
+    #[test]
+    fn clean_life_risk_is_quoted() {
+        let result = evaluate_life(&base_life_profile());
+        assert_eq!(result.decision, UnderwritingDecision::Quoted);
+        assert_eq!(result.risk_multiplier, 1.0);
+        assert!(result.reasons.is_empty());
+    }
+
+    #[test]
+    fn life_three_prior_claims_is_declined() {
+        let mut profile = base_life_profile();
+        profile.prior_claims_5y = Some(3);
+        let result = evaluate_life(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+        assert!(result.reasons[0].contains("3 claims"));
+    }
+
+    #[test]
+    fn life_over_maximum_coverage_is_declined() {
+        let mut profile = base_life_profile();
+        profile.coverage_amount = Some(1_500_000.0);
+        let result = evaluate_life(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+        assert!(result.reasons[0].contains("specialist reinsurance"));
+    }
+
+    #[test]
+    fn life_underage_applicant_is_declined() {
+        let mut profile = base_life_profile();
+        profile.applicant_age = Some(16);
+        let result = evaluate_life(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+        assert!(result.reasons[0].contains("minimum insurable age"));
+    }
+
+    #[test]
+    fn life_two_prior_claims_is_referred_not_declined() {
+        let mut profile = base_life_profile();
+        profile.prior_claims_5y = Some(2);
+        let result = evaluate_life(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Referred);
+        assert!(result.reasons[0].contains("2 claims"));
+    }
+
+    #[test]
+    fn life_above_guaranteed_issue_limit_is_referred() {
+        let mut profile = base_life_profile();
+        profile.coverage_amount = Some(500_000.0);
+        let result = evaluate_life(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Referred);
+        assert!(result.reasons[0].contains("medical underwriting"));
+    }
+
+    #[test]
+    fn life_missing_age_is_referred_not_silently_accepted() {
+        let mut profile = base_life_profile();
+        profile.applicant_age = None;
+        let result = evaluate_life(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Referred);
+    }
+
+    #[test]
+    fn life_decline_wins_over_refer_when_both_present() {
+        let mut profile = base_life_profile();
+        profile.coverage_amount = Some(500_000.0); // would refer
+        profile.applicant_age = Some(16); // declines
+        let result = evaluate_life(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+    }
+
+    #[test]
+    fn life_senior_surcharge_still_quotes() {
+        let mut profile = base_life_profile();
+        profile.applicant_age = Some(70); // 66-75 band, 1.4x, still Accept
+        let result = evaluate_life(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Quoted);
+        assert_eq!(result.risk_multiplier, 1.4);
     }
 }
