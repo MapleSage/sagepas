@@ -290,17 +290,11 @@ fn evaluate_vehicle_value_band(vehicle_value: Option<f64>) -> FactorResult {
     }
 }
 
-/// Evaluate the full Auto risk profile against all factors and aggregate
-/// to a single decision. Decline beats refer beats quoted: any hard stop
-/// wins regardless of how many other factors would have accepted.
-pub fn evaluate_auto(profile: &AutoRiskProfile) -> UnderwritingResult {
-    let results = vec![
-        evaluate_age(profile.driver_age, profile.coverage_amount),
-        evaluate_prior_claims(profile.prior_claims_5y),
-        evaluate_coverage_ratio(profile.coverage_amount, profile.vehicle_value),
-        evaluate_vehicle_value_band(profile.vehicle_value),
-    ];
-
+/// Aggregate a set of independently-evaluated factors into one decision.
+/// Decline beats refer beats quoted: any hard stop wins regardless of how
+/// many other factors would have accepted. Shared by every line so the
+/// precedence rule can't drift between them.
+fn aggregate(results: Vec<FactorResult>) -> UnderwritingResult {
     let declined: Vec<&FactorResult> = results
         .iter()
         .filter(|r| r.outcome == FactorOutcome::Decline)
@@ -338,6 +332,100 @@ pub fn evaluate_auto(profile: &AutoRiskProfile) -> UnderwritingResult {
         factors,
         reasons: Vec::new(),
     }
+}
+
+/// Evaluate the full Auto risk profile against all factors and aggregate
+/// to a single decision.
+pub fn evaluate_auto(profile: &AutoRiskProfile) -> UnderwritingResult {
+    aggregate(vec![
+        evaluate_age(profile.driver_age, profile.coverage_amount),
+        evaluate_prior_claims(profile.prior_claims_5y),
+        evaluate_coverage_ratio(profile.coverage_amount, profile.vehicle_value),
+        evaluate_vehicle_value_band(profile.vehicle_value),
+    ])
+}
+
+/// The subset of a risk profile Property underwriting evaluates.
+#[derive(Debug, Clone, Default)]
+pub struct PropertyRiskProfile {
+    /// Number of claims filed by this customer in the last 5 years,
+    /// looked up from the real `claims` table by the caller — never
+    /// client-supplied. Same signal Auto uses; claims history is a
+    /// cross-line risk indicator, not an Auto-specific one.
+    pub prior_claims_5y: Option<i64>,
+    pub coverage_amount: Option<f64>,
+    pub property_value: Option<f64>,
+}
+
+/// Evaluate coverage-to-property-value ratio (insurable-interest /
+/// over-insurance check). Same bands as Auto's coverage-ratio check:
+/// this estate is deliberately conservative rather than line-tuned.
+fn evaluate_property_coverage_ratio(
+    coverage_amount: Option<f64>,
+    property_value: Option<f64>,
+) -> FactorResult {
+    let coverage = coverage_amount.unwrap_or(0.0);
+    match property_value {
+        None | Some(0.0) => FactorResult {
+            factor: RateFactor {
+                name: "coverage_to_property_value_ratio".into(),
+                value: 1.0,
+                description: Some("property value not provided".into()),
+            },
+            outcome: FactorOutcome::Refer,
+            reason: Some(
+                "property value is required to validate coverage against insurable interest"
+                    .into(),
+            ),
+        },
+        Some(value) => {
+            let ratio = coverage / value;
+            if ratio <= 1.2 {
+                FactorResult {
+                    factor: RateFactor {
+                        name: "coverage_to_property_value_ratio".into(),
+                        value: 1.0,
+                        description: Some(format!("ratio {ratio:.2}")),
+                    },
+                    outcome: FactorOutcome::Accept,
+                    reason: None,
+                }
+            } else if ratio <= 1.5 {
+                FactorResult {
+                    factor: RateFactor {
+                        name: "coverage_to_property_value_ratio".into(),
+                        value: 1.0,
+                        description: Some(format!("ratio {ratio:.2}")),
+                    },
+                    outcome: FactorOutcome::Refer,
+                    reason: Some(format!(
+                        "requested coverage is {ratio:.2}x property value; possible over-insurance requires review"
+                    )),
+                }
+            } else {
+                FactorResult {
+                    factor: RateFactor {
+                        name: "coverage_to_property_value_ratio".into(),
+                        value: 1.0,
+                        description: Some(format!("ratio {ratio:.2}")),
+                    },
+                    outcome: FactorOutcome::Decline,
+                    reason: Some(format!(
+                        "requested coverage is {ratio:.2}x property value, exceeding the 1.5x insurable-interest limit"
+                    )),
+                }
+            }
+        }
+    }
+}
+
+/// Evaluate the full Property risk profile against all factors and
+/// aggregate to a single decision.
+pub fn evaluate_property(profile: &PropertyRiskProfile) -> UnderwritingResult {
+    aggregate(vec![
+        evaluate_prior_claims(profile.prior_claims_5y),
+        evaluate_property_coverage_ratio(profile.coverage_amount, profile.property_value),
+    ])
 }
 
 #[cfg(test)]
@@ -446,5 +534,78 @@ mod tests {
         let result = evaluate_auto(&profile);
         assert_eq!(result.decision, UnderwritingDecision::Quoted);
         assert!((result.risk_multiplier - (1.25 * 1.35)).abs() < 1e-9);
+    }
+
+    fn base_property_profile() -> PropertyRiskProfile {
+        PropertyRiskProfile {
+            prior_claims_5y: Some(0),
+            coverage_amount: Some(300_000.0),
+            property_value: Some(350_000.0),
+        }
+    }
+
+    #[test]
+    fn clean_property_risk_is_quoted() {
+        let result = evaluate_property(&base_property_profile());
+        assert_eq!(result.decision, UnderwritingDecision::Quoted);
+        assert_eq!(result.risk_multiplier, 1.0);
+        assert!(result.reasons.is_empty());
+    }
+
+    #[test]
+    fn property_three_prior_claims_is_declined() {
+        let mut profile = base_property_profile();
+        profile.prior_claims_5y = Some(3);
+        let result = evaluate_property(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+        assert!(result.reasons[0].contains("3 claims"));
+    }
+
+    #[test]
+    fn property_over_insurance_is_declined() {
+        let mut profile = base_property_profile();
+        profile.coverage_amount = Some(600_000.0);
+        profile.property_value = Some(300_000.0); // ratio 2.0 > 1.5
+        let result = evaluate_property(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+        assert!(result.reasons[0].contains("insurable-interest"));
+    }
+
+    #[test]
+    fn property_two_prior_claims_is_referred_not_declined() {
+        let mut profile = base_property_profile();
+        profile.prior_claims_5y = Some(2);
+        let result = evaluate_property(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Referred);
+        assert!(result.reasons[0].contains("2 claims"));
+    }
+
+    #[test]
+    fn property_missing_value_is_referred_not_silently_accepted() {
+        let mut profile = base_property_profile();
+        profile.property_value = None;
+        let result = evaluate_property(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Referred);
+        assert!(result.reasons[0].contains("insurable interest"));
+    }
+
+    #[test]
+    fn property_decline_wins_over_refer_when_both_present() {
+        let mut profile = base_property_profile();
+        profile.prior_claims_5y = Some(2); // would refer
+        profile.coverage_amount = Some(600_000.0);
+        profile.property_value = Some(300_000.0); // declines (ratio 2.0)
+        let result = evaluate_property(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+    }
+
+    #[test]
+    fn property_moderate_ratio_is_referred() {
+        let mut profile = base_property_profile();
+        profile.coverage_amount = Some(455_000.0);
+        profile.property_value = Some(350_000.0); // ratio 1.3, in the 1.2-1.5 refer band
+        let result = evaluate_property(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Referred);
+        assert!(result.reasons[0].contains("over-insurance"));
     }
 }

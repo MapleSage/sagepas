@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use domain::insurance::{Currency, PremiumCalculation, RateFactor};
 
-use crate::underwriting::{evaluate_auto, AutoRiskProfile, UnderwritingDecision};
+use crate::underwriting::{
+    evaluate_auto, evaluate_property, AutoRiskProfile, PropertyRiskProfile, UnderwritingDecision,
+};
 use crate::{
     ExecutionMode, ProviderIdentity, RatingDecision, RatingError, RatingProvider, RatingRequest,
     RatingResult,
@@ -74,12 +76,46 @@ impl RatingProvider for PasProvider {
         )
         .map_err(|error| RatingError::MappingFailed(format!("pricing.factors: {error}")))?;
 
-        // Underwriting is Auto-only for now (scoped deliberately — see the
-        // rating crate's underwriting module doc comment). A quote is
-        // treated as Auto when a vehicle_value is present; other lines are
-        // promoted as-is pending underwriting coverage for those products.
-        let vehicle_value = request.risk.get("vehicle_value").and_then(|v| v.as_f64());
-        if vehicle_value.is_none() {
+        // Underwriting dispatches on the product's real insurance_type,
+        // looked up server-side from the products table by the caller (see
+        // handlers::rating::quote) — never guessed from which risk fields
+        // happen to be present. Lines without a case below are promoted
+        // as-is pending underwriting coverage for those products (see the
+        // rating crate's underwriting module doc comment for scope).
+        let insurance_type = request.risk.get("insurance_type").and_then(|v| v.as_str());
+
+        let underwriting = match insurance_type {
+            Some("auto") => {
+                let profile = AutoRiskProfile {
+                    driver_age: request
+                        .risk
+                        .get("customer_age")
+                        .and_then(|v| v.as_u64())
+                        .map(|v| v as u32),
+                    prior_claims_5y: request
+                        .risk
+                        .get("prior_claims_count")
+                        .and_then(|v| v.as_i64()),
+                    coverage_amount: request.risk.get("coverage_amount").and_then(|v| v.as_f64()),
+                    vehicle_value: request.risk.get("vehicle_value").and_then(|v| v.as_f64()),
+                };
+                Some(evaluate_auto(&profile))
+            }
+            Some("property") => {
+                let profile = PropertyRiskProfile {
+                    prior_claims_5y: request
+                        .risk
+                        .get("prior_claims_count")
+                        .and_then(|v| v.as_i64()),
+                    coverage_amount: request.risk.get("coverage_amount").and_then(|v| v.as_f64()),
+                    property_value: request.risk.get("property_value").and_then(|v| v.as_f64()),
+                };
+                Some(evaluate_property(&profile))
+            }
+            _ => None,
+        };
+
+        let Some(underwriting) = underwriting else {
             return Ok(RatingResult {
                 decision: RatingDecision::Quoted,
                 premium: Some(PremiumCalculation {
@@ -93,22 +129,7 @@ impl RatingProvider for PasProvider {
                 product: request.product_id,
                 provider: self.identity(),
             });
-        }
-
-        let profile = AutoRiskProfile {
-            driver_age: request
-                .risk
-                .get("customer_age")
-                .and_then(|v| v.as_u64())
-                .map(|v| v as u32),
-            prior_claims_5y: request
-                .risk
-                .get("prior_claims_count")
-                .and_then(|v| v.as_i64()),
-            coverage_amount: request.risk.get("coverage_amount").and_then(|v| v.as_f64()),
-            vehicle_value,
         };
-        let underwriting = evaluate_auto(&profile);
 
         match underwriting.decision {
             UnderwritingDecision::Declined => Ok(RatingResult {
@@ -246,10 +267,23 @@ mod tests {
 
     fn auto_request(risk_extra: serde_json::Value, pricing: serde_json::Value) -> RatingRequest {
         let mut risk = risk_extra;
+        risk["insurance_type"] = serde_json::json!("auto");
         risk["pricing"] = pricing;
         RatingRequest {
             carrier_id: "sagesure_pas".to_string(),
             product_id: "auto-us".to_string(),
+            state: "TX".to_string(),
+            risk,
+        }
+    }
+
+    fn property_request(risk_extra: serde_json::Value, pricing: serde_json::Value) -> RatingRequest {
+        let mut risk = risk_extra;
+        risk["insurance_type"] = serde_json::json!("property");
+        risk["pricing"] = pricing;
+        RatingRequest {
+            carrier_id: "sagesure_pas".to_string(),
+            product_id: "property-us".to_string(),
             state: "TX".to_string(),
             risk,
         }
@@ -363,16 +397,115 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn non_auto_quote_without_vehicle_value_still_promotes_pricing_as_before() {
+    async fn quote_without_a_dispatched_insurance_type_still_promotes_pricing_as_before() {
         let provider = PasProvider::new();
         let result = provider
-            .rate(auto_request(
-                serde_json::json!({}), // no vehicle_value => not treated as Auto
-                clean_pricing(),
-            ))
+            .rate(request("sagesure_pas", clean_pricing())) // no insurance_type => no underwriting case yet
             .await
-            .expect("non-auto lines pass through pending underwriting coverage");
+            .expect("lines without underwriting coverage pass through pending implementation");
 
         assert!(matches!(result.decision, RatingDecision::Quoted));
+    }
+
+    fn clean_property_pricing() -> serde_json::Value {
+        serde_json::json!({
+            "base_rate": 900.0,
+            "final_premium": 900.0,
+            "currency": "USD",
+            "factors": []
+        })
+    }
+
+    #[tokio::test]
+    async fn property_quote_with_clean_risk_is_quoted_with_underwriting_factors_attached() {
+        let provider = PasProvider::new();
+        let result = provider
+            .rate(property_request(
+                serde_json::json!({
+                    "coverage_amount": 300_000.0,
+                    "property_value": 350_000.0,
+                    "prior_claims_count": 0
+                }),
+                clean_property_pricing(),
+            ))
+            .await
+            .expect("clean property risk should be quoted");
+
+        assert!(matches!(result.decision, RatingDecision::Quoted));
+        let premium = result.premium.expect("quoted result must contain premium");
+        assert_eq!(premium.final_premium, 900.0);
+        assert!(premium
+            .factors
+            .iter()
+            .any(|f| f.name == "coverage_to_property_value_ratio"));
+        assert!(premium.factors.iter().any(|f| f.name == "prior_claims_5y"));
+    }
+
+    #[tokio::test]
+    async fn property_quote_with_three_prior_claims_is_declined_end_to_end() {
+        let provider = PasProvider::new();
+        let result = provider
+            .rate(property_request(
+                serde_json::json!({
+                    "coverage_amount": 300_000.0,
+                    "property_value": 350_000.0,
+                    "prior_claims_count": 3
+                }),
+                clean_property_pricing(),
+            ))
+            .await
+            .expect("declined is a successful RatingResult, not an error");
+
+        assert!(matches!(result.decision, RatingDecision::Declined));
+        assert!(result.premium.is_none(), "declined quotes must not carry a bindable premium");
+        assert!(result
+            .referral_reason
+            .expect("decline must carry a reason")
+            .contains("3 claims"));
+    }
+
+    #[tokio::test]
+    async fn property_quote_with_two_prior_claims_is_referred_end_to_end() {
+        let provider = PasProvider::new();
+        let result = provider
+            .rate(property_request(
+                serde_json::json!({
+                    "coverage_amount": 300_000.0,
+                    "property_value": 350_000.0,
+                    "prior_claims_count": 2
+                }),
+                clean_property_pricing(),
+            ))
+            .await
+            .expect("referred is a successful RatingResult, not an error");
+
+        assert!(matches!(result.decision, RatingDecision::Referred));
+        assert!(result.premium.is_none(), "referred quotes must not carry a bindable premium");
+        assert!(result
+            .referral_reason
+            .expect("referral must carry a reason")
+            .contains("2 claims"));
+    }
+
+    #[tokio::test]
+    async fn property_quote_over_insured_is_declined_end_to_end() {
+        let provider = PasProvider::new();
+        let result = provider
+            .rate(property_request(
+                serde_json::json!({
+                    "coverage_amount": 700_000.0,
+                    "property_value": 350_000.0, // ratio 2.0 > 1.5
+                    "prior_claims_count": 0
+                }),
+                clean_property_pricing(),
+            ))
+            .await
+            .expect("declined is a successful RatingResult, not an error");
+
+        assert!(matches!(result.decision, RatingDecision::Declined));
+        assert!(result
+            .referral_reason
+            .expect("decline must carry a reason")
+            .contains("insurable-interest"));
     }
 }
