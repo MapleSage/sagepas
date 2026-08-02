@@ -628,10 +628,7 @@ async fn dispatch_event(
         payload: &event.payload,
     };
 
-    let result = state
-        .hubspot_http_client
-        .post(bridge_url.clone())
-        .header(BRIDGE_SECRET_HEADER, bridge_secret)
+    let result = hubspot_bridge_request(&state.hubspot_http_client, bridge_url.as_str(), bridge_secret)
         .json(&request)
         .send()
         .await;
@@ -671,6 +668,17 @@ async fn dispatch_event(
             }
         }
     }
+}
+
+fn hubspot_bridge_request(
+    client: &reqwest::Client,
+    bridge_url: &str,
+    bridge_secret: &str,
+) -> reqwest::RequestBuilder {
+    // The deployed HubSpot function accepts this shared secret as a standard
+    // bearer credential. Keep the custom bridge header reserved for
+    // HubSpot-to-PAS inbound cache writes.
+    client.post(bridge_url).bearer_auth(bridge_secret)
 }
 
 async fn mark_dispatch_succeeded(state: &AppState, event: &OutboxEvent) -> Result<(), sqlx::Error> {
@@ -1179,6 +1187,26 @@ mod tests {
         assert_eq!(retry_backoff_seconds(2), 10);
         assert_eq!(retry_backoff_seconds(10), 300);
         assert_eq!(retry_backoff_seconds(i32::MAX), 300);
+    }
+
+    #[test]
+    fn outbound_bridge_dispatch_uses_bearer_auth() {
+        let request = hubspot_bridge_request(
+            &reqwest::Client::new(),
+            "https://bridge.example/sync",
+            "shared-secret",
+        )
+        .build()
+        .expect("request should build");
+
+        assert_eq!(
+            request
+                .headers()
+                .get(reqwest::header::AUTHORIZATION)
+                .and_then(|value| value.to_str().ok()),
+            Some("Bearer shared-secret")
+        );
+        assert!(request.headers().get(BRIDGE_SECRET_HEADER).is_none());
     }
 
     #[test]
