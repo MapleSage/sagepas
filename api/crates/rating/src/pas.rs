@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use domain::insurance::{Currency, PremiumCalculation, RateFactor};
 
 use crate::underwriting::{
-    evaluate_auto, evaluate_life, evaluate_property, AutoRiskProfile, LifeRiskProfile,
-    PropertyRiskProfile, UnderwritingDecision,
+    evaluate_auto, evaluate_health, evaluate_life, evaluate_property, AutoRiskProfile,
+    HealthRiskProfile, LifeRiskProfile, PropertyRiskProfile, UnderwritingDecision,
 };
 use crate::{
     ExecutionMode, ProviderIdentity, RatingDecision, RatingError, RatingProvider, RatingRequest,
@@ -127,6 +127,21 @@ impl RatingProvider for PasProvider {
                     coverage_amount: request.risk.get("coverage_amount").and_then(|v| v.as_f64()),
                 };
                 Some(evaluate_life(&profile))
+            }
+            Some("health") => {
+                let profile = HealthRiskProfile {
+                    applicant_age: request
+                        .risk
+                        .get("customer_age")
+                        .and_then(|v| v.as_u64())
+                        .map(|v| v as u32),
+                    prior_claims_5y: request
+                        .risk
+                        .get("prior_claims_count")
+                        .and_then(|v| v.as_i64()),
+                    coverage_amount: request.risk.get("coverage_amount").and_then(|v| v.as_f64()),
+                };
+                Some(evaluate_health(&profile))
             }
             _ => None,
         };
@@ -634,5 +649,116 @@ mod tests {
             .referral_reason
             .expect("decline must carry a reason")
             .contains("specialist reinsurance"));
+    }
+
+    fn health_request(risk_extra: serde_json::Value, pricing: serde_json::Value) -> RatingRequest {
+        let mut risk = risk_extra;
+        risk["insurance_type"] = serde_json::json!("health");
+        risk["pricing"] = pricing;
+        RatingRequest {
+            carrier_id: "sagesure_pas".to_string(),
+            product_id: "health-us".to_string(),
+            state: "TX".to_string(),
+            risk,
+        }
+    }
+
+    fn clean_health_pricing() -> serde_json::Value {
+        serde_json::json!({
+            "base_rate": 300.0,
+            "final_premium": 300.0,
+            "currency": "USD",
+            "factors": []
+        })
+    }
+
+    #[tokio::test]
+    async fn health_quote_with_clean_risk_is_quoted_with_underwriting_factors_attached() {
+        let provider = PasProvider::new();
+        let result = provider
+            .rate(health_request(
+                serde_json::json!({
+                    "customer_age": 35,
+                    "coverage_amount": 50_000.0,
+                    "prior_claims_count": 0
+                }),
+                clean_health_pricing(),
+            ))
+            .await
+            .expect("clean health risk should be quoted");
+
+        assert!(matches!(result.decision, RatingDecision::Quoted));
+        let premium = result.premium.expect("quoted result must contain premium");
+        assert_eq!(premium.final_premium, 300.0);
+        assert!(premium.factors.iter().any(|f| f.name == "applicant_age"));
+        assert!(premium.factors.iter().any(|f| f.name == "coverage_band"));
+    }
+
+    #[tokio::test]
+    async fn health_quote_with_three_prior_claims_is_declined_end_to_end() {
+        let provider = PasProvider::new();
+        let result = provider
+            .rate(health_request(
+                serde_json::json!({
+                    "customer_age": 35,
+                    "coverage_amount": 50_000.0,
+                    "prior_claims_count": 3
+                }),
+                clean_health_pricing(),
+            ))
+            .await
+            .expect("declined is a successful RatingResult, not an error");
+
+        assert!(matches!(result.decision, RatingDecision::Declined));
+        assert!(result.premium.is_none(), "declined quotes must not carry a bindable premium");
+        assert!(result
+            .referral_reason
+            .expect("decline must carry a reason")
+            .contains("3 claims"));
+    }
+
+    #[tokio::test]
+    async fn health_quote_over_standard_issue_is_referred_end_to_end() {
+        let provider = PasProvider::new();
+        let result = provider
+            .rate(health_request(
+                serde_json::json!({
+                    "customer_age": 35,
+                    "coverage_amount": 200_000.0,
+                    "prior_claims_count": 0
+                }),
+                clean_health_pricing(),
+            ))
+            .await
+            .expect("referred is a successful RatingResult, not an error");
+
+        assert!(matches!(result.decision, RatingDecision::Referred));
+        assert!(result.premium.is_none(), "referred quotes must not carry a bindable premium");
+        assert!(result
+            .referral_reason
+            .expect("referral must carry a reason")
+            .contains("enhanced underwriting"));
+    }
+
+    #[tokio::test]
+    async fn health_quote_over_maximum_coverage_is_declined_end_to_end() {
+        let provider = PasProvider::new();
+        let result = provider
+            .rate(health_request(
+                serde_json::json!({
+                    "customer_age": 35,
+                    "coverage_amount": 600_000.0,
+                    "prior_claims_count": 0
+                }),
+                clean_health_pricing(),
+            ))
+            .await
+            .expect("declined is a successful RatingResult, not an error");
+
+        assert!(matches!(result.decision, RatingDecision::Declined));
+        assert!(result
+            .referral_reason
+            .expect("decline must carry a reason")
+            .contains("reinsurance"));
     }
 }

@@ -562,6 +562,132 @@ pub fn evaluate_life(profile: &LifeRiskProfile) -> UnderwritingResult {
     ])
 }
 
+/// The subset of a risk profile Health underwriting evaluates.
+#[derive(Debug, Clone, Default)]
+pub struct HealthRiskProfile {
+    pub applicant_age: Option<u32>,
+    /// Same cross-line signal the other lines use.
+    pub prior_claims_5y: Option<i64>,
+    /// Requested annual benefit maximum.
+    pub coverage_amount: Option<f64>,
+}
+
+/// Evaluate applicant age eligibility and age-band loading for a health
+/// policy. Health has no adult-only minimum the way Auto/Life do — a
+/// newborn dependent is insurable — so unlike those lines this never
+/// declines on a low age, only on age being unusually high.
+fn evaluate_health_age(age: Option<u32>) -> FactorResult {
+    match age {
+        None => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.0,
+                description: Some("applicant age not provided".into()),
+            },
+            outcome: FactorOutcome::Refer,
+            reason: Some("applicant age is required to rate a health risk".into()),
+        },
+        Some(age) if age <= 64 => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.0,
+                description: Some(format!("standard age band, age {age}")),
+            },
+            outcome: FactorOutcome::Accept,
+            reason: None,
+        },
+        Some(age) if age <= 75 => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.5,
+                description: Some(format!("senior surcharge, age {age}")),
+            },
+            outcome: FactorOutcome::Accept,
+            reason: None,
+        },
+        Some(age) if age <= 90 => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.5,
+                description: Some(format!("age {age} above 75")),
+            },
+            outcome: FactorOutcome::Refer,
+            reason: Some(format!(
+                "applicant age {age} is above 75 and requires specialist review"
+            )),
+        },
+        Some(age) => FactorResult {
+            factor: RateFactor {
+                name: "applicant_age".into(),
+                value: 1.5,
+                description: Some(format!("age {age} above 90")),
+            },
+            outcome: FactorOutcome::Decline,
+            reason: Some(format!(
+                "applicant age {age} is above 90 and exceeds this line's insurable age limit"
+            )),
+        },
+    }
+}
+
+/// Evaluate requested annual benefit maximum band. Small benefit maximums
+/// are standard-issue; larger ones need enhanced underwriting; very large
+/// ones exceed what this estate can carry without reinsurance.
+fn evaluate_health_coverage_band(coverage_amount: Option<f64>) -> FactorResult {
+    match coverage_amount {
+        None | Some(0.0) => FactorResult {
+            factor: RateFactor {
+                name: "coverage_band".into(),
+                value: 1.0,
+                description: Some("coverage amount not provided".into()),
+            },
+            outcome: FactorOutcome::Refer,
+            reason: Some("coverage amount is required to rate a health risk".into()),
+        },
+        Some(amount) if amount <= 100_000.0 => FactorResult {
+            factor: RateFactor {
+                name: "coverage_band".into(),
+                value: 1.0,
+                description: Some(format!("standard-issue band, ${amount:.0}")),
+            },
+            outcome: FactorOutcome::Accept,
+            reason: None,
+        },
+        Some(amount) if amount <= 500_000.0 => FactorResult {
+            factor: RateFactor {
+                name: "coverage_band".into(),
+                value: 1.0,
+                description: Some(format!("${amount:.0} above standard-issue limit")),
+            },
+            outcome: FactorOutcome::Refer,
+            reason: Some(format!(
+                "requested annual benefit maximum ${amount:.0} exceeds the $100,000 standard-issue limit and requires enhanced underwriting"
+            )),
+        },
+        Some(amount) => FactorResult {
+            factor: RateFactor {
+                name: "coverage_band".into(),
+                value: 1.0,
+                description: Some(format!("${amount:.0} above $500,000")),
+            },
+            outcome: FactorOutcome::Decline,
+            reason: Some(format!(
+                "requested annual benefit maximum ${amount:.0} exceeds $500,000 and requires reinsurance placement"
+            )),
+        },
+    }
+}
+
+/// Evaluate the full Health risk profile against all factors and
+/// aggregate to a single decision.
+pub fn evaluate_health(profile: &HealthRiskProfile) -> UnderwritingResult {
+    aggregate(vec![
+        evaluate_health_age(profile.applicant_age),
+        evaluate_prior_claims(profile.prior_claims_5y),
+        evaluate_health_coverage_band(profile.coverage_amount),
+    ])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -828,5 +954,91 @@ mod tests {
         let result = evaluate_life(&profile);
         assert_eq!(result.decision, UnderwritingDecision::Quoted);
         assert_eq!(result.risk_multiplier, 1.4);
+    }
+
+    fn base_health_profile() -> HealthRiskProfile {
+        HealthRiskProfile {
+            applicant_age: Some(35),
+            prior_claims_5y: Some(0),
+            coverage_amount: Some(50_000.0),
+        }
+    }
+
+    #[test]
+    fn clean_health_risk_is_quoted() {
+        let result = evaluate_health(&base_health_profile());
+        assert_eq!(result.decision, UnderwritingDecision::Quoted);
+        assert_eq!(result.risk_multiplier, 1.0);
+        assert!(result.reasons.is_empty());
+    }
+
+    #[test]
+    fn health_three_prior_claims_is_declined() {
+        let mut profile = base_health_profile();
+        profile.prior_claims_5y = Some(3);
+        let result = evaluate_health(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+        assert!(result.reasons[0].contains("3 claims"));
+    }
+
+    #[test]
+    fn health_over_maximum_coverage_is_declined() {
+        let mut profile = base_health_profile();
+        profile.coverage_amount = Some(600_000.0);
+        let result = evaluate_health(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+        assert!(result.reasons[0].contains("reinsurance"));
+    }
+
+    #[test]
+    fn health_over_age_limit_is_declined() {
+        let mut profile = base_health_profile();
+        profile.applicant_age = Some(95);
+        let result = evaluate_health(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+        assert!(result.reasons[0].contains("insurable age limit"));
+    }
+
+    #[test]
+    fn health_two_prior_claims_is_referred_not_declined() {
+        let mut profile = base_health_profile();
+        profile.prior_claims_5y = Some(2);
+        let result = evaluate_health(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Referred);
+        assert!(result.reasons[0].contains("2 claims"));
+    }
+
+    #[test]
+    fn health_above_standard_issue_limit_is_referred() {
+        let mut profile = base_health_profile();
+        profile.coverage_amount = Some(200_000.0);
+        let result = evaluate_health(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Referred);
+        assert!(result.reasons[0].contains("enhanced underwriting"));
+    }
+
+    #[test]
+    fn health_missing_age_is_referred_not_silently_accepted() {
+        let mut profile = base_health_profile();
+        profile.applicant_age = None;
+        let result = evaluate_health(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Referred);
+    }
+
+    #[test]
+    fn health_decline_wins_over_refer_when_both_present() {
+        let mut profile = base_health_profile();
+        profile.coverage_amount = Some(200_000.0); // would refer
+        profile.applicant_age = Some(95); // declines
+        let result = evaluate_health(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Declined);
+    }
+
+    #[test]
+    fn health_newborn_is_quoted_not_declined() {
+        let mut profile = base_health_profile();
+        profile.applicant_age = Some(0);
+        let result = evaluate_health(&profile);
+        assert_eq!(result.decision, UnderwritingDecision::Quoted);
     }
 }
