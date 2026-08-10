@@ -124,10 +124,13 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-    let hubspot_bridge_secret = std::env::var("HUBSPOT_BRIDGE_SECRET")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
+    // Keep the Kubernetes/API name aligned with the HubSpot project secret.
+    // HUBSPOT_BRIDGE_SECRET remains a compatibility fallback for the original
+    // deployment template, but new deployments use HUBSPOT_SYNC_SECRET.
+    let hubspot_bridge_secret = resolve_hubspot_bridge_secret(
+        std::env::var("HUBSPOT_SYNC_SECRET").ok(),
+        std::env::var("HUBSPOT_BRIDGE_SECRET").ok(),
+    );
     if hubspot_bridge_url.is_none() || hubspot_bridge_secret.is_none() {
         warn!(
             bridge_url_configured = hubspot_bridge_url.is_some(),
@@ -317,6 +320,46 @@ async fn main() -> anyhow::Result<()> {
     info!(%addr, "listening");
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+fn resolve_hubspot_bridge_secret(
+    sync_secret: Option<String>,
+    legacy_bridge_secret: Option<String>,
+) -> Option<String> {
+    let normalize = |value: String| {
+        let value = value.trim().to_string();
+        (!value.is_empty()).then_some(value)
+    };
+
+    sync_secret
+        .and_then(&normalize)
+        .or_else(|| legacy_bridge_secret.and_then(normalize))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_hubspot_bridge_secret;
+
+    #[test]
+    fn hubspot_sync_secret_takes_precedence() {
+        let secret = resolve_hubspot_bridge_secret(
+            Some(" sync-secret ".to_string()),
+            Some("legacy-secret".to_string()),
+        );
+        assert_eq!(secret.as_deref(), Some("sync-secret"));
+    }
+
+    #[test]
+    fn legacy_hubspot_bridge_secret_remains_a_fallback() {
+        let secret = resolve_hubspot_bridge_secret(None, Some(" legacy-secret ".to_string()));
+        assert_eq!(secret.as_deref(), Some("legacy-secret"));
+
+        let blank_primary = resolve_hubspot_bridge_secret(
+            Some("   ".to_string()),
+            Some("legacy-secret".to_string()),
+        );
+        assert_eq!(blank_primary.as_deref(), Some("legacy-secret"));
+    }
 }
 
 async fn health(

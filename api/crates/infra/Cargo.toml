@@ -19,6 +19,8 @@ envy        = { workspace = true }
 reqwest     = { workspace = true }
 thiserror   = { workspace = true }
 jsonwebtoken = { workspace = true }
+async-trait = "0.1"
+time        = "0.3"
 
 [dev-dependencies]
 rsa = { version = "0.9", features = ["pem"] }

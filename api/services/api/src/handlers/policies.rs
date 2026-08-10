@@ -3,7 +3,7 @@ use axum::{
     body::Body,
     extract::{Path, Query, State},
     http::{StatusCode, header},
-    response::{IntoResponse, Redirect, Response},
+    response::{IntoResponse, Response},
 };
 use chrono::{Duration, NaiveDate, Utc};
 use event_models::{InsuranceEvent, PolicyIssued};
@@ -390,7 +390,12 @@ pub async fn issue_policy(
 }
 
 /// GET /api/v1/policies/:id/document
-/// Serves standalone-local PDFs directly and redirects production Blob URLs.
+/// Serves standalone-local PDFs directly. Production Blob-backed documents
+/// are streamed through the API too, not redirected — the storage account
+/// has public access disabled and no CORS rules configured (deliberately,
+/// since these are policyholders' documents), so a browser can never
+/// fetch a blob URL directly; the API is the only authenticated party
+/// that can reach it.
 pub async fn get_policy_document(
     Path(id): Path<Uuid>,
     State(state): State<AppState>,
@@ -404,27 +409,34 @@ pub async fn get_policy_document(
 
     let url: Option<String> = row.try_get("pdf_url").ok();
     let url = url.ok_or_else(|| (StatusCode::NOT_FOUND, "PDF not yet generated".to_string()))?;
-    if let Some(path) = url.strip_prefix("file://") {
-        let bytes = tokio::fs::read(path).await.map_err(|e| {
+
+    let bytes = if let Some(path) = url.strip_prefix("file://") {
+        tokio::fs::read(path).await.map_err(|e| {
             (
                 StatusCode::NOT_FOUND,
                 format!("policy PDF unavailable: {e}"),
             )
-        })?;
-        return Ok((
-            [
-                (header::CONTENT_TYPE, "application/pdf"),
-                (
-                    header::CONTENT_DISPOSITION,
-                    "attachment; filename=policy.pdf",
-                ),
-            ],
-            Body::from(bytes),
-        )
-            .into_response());
-    }
+        })?
+    } else {
+        state.documents.download_by_url(&url).await.map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("policy PDF could not be retrieved from storage: {e}"),
+            )
+        })?
+    };
 
-    Ok(Redirect::temporary(&url).into_response())
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/pdf"),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=policy.pdf",
+            ),
+        ],
+        Body::from(bytes),
+    )
+        .into_response())
 }
 
 pub async fn endorse_policy(

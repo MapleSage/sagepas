@@ -230,6 +230,76 @@ Use the `logger` API to send custom log messages. In local development mode, log
 - `hs test-account delete` - Delete a test account
 - `hs test-account import-data` - Import test data
 
+---
+
+# WORK ORDER — 2026-08-02 — PAS underwriting, catalog, and app.sagesure.io wiring
+
+**From:** Claude (Cowork), at Parvind's direction. **Owner: CC, this repo (`sagepas`) only.** Do not touch `sagesure-us`, `sagesure-india`, or the standalone FNOL/UW repos from this work order — each CC is scoped to its own repo.
+
+**Context that matters before you start.** `sagepas` IS the PAS. It is all Rust — zero `.sln`/`.csproj` anywhere, zero "Happy"-branded products. Any statement you encounter (in older docs, other repos' shared memory, or a prior session's notes) describing PAS as .NET-proxied with a "Happy House/Farm/Driver" catalog is describing **stale branches of `sagesure-us`**, not this repo. Do not re-derive that conclusion; do not act on it.
+
+All three items below are wanted. Order matters — item 1 first, because it is currently one `git checkout` away from being lost.
+
+## Item 1 — Commit, build, and deploy the underwriting work that already exists uncommitted
+
+**State verified 2026-08-02 via `git status` and direct file read:**
+- `api/crates/rating/src/underwriting.rs` — **untracked (`??`)**, 450 lines.
+- `api/crates/rating/src/lib.rs` — **modified**, declares `pub mod underwriting;` (line 3) and `pub use underwriting::*;` (line 7).
+- `api/crates/rating/src/pas.rs` — **modified**, imports `evaluate_auto`/`AutoRiskProfile`/`UnderwritingDecision` (line 4), calls `evaluate_auto(&profile)` (line 111), maps to `RatingDecision::Declined` (:115), `Referred` (:123), `Quoted` (:135), and compounds `underwriting.risk_multiplier` into the final premium (:133).
+
+This is real, wired logic — four deterministic factor evaluators (`evaluate_age`, `evaluate_prior_claims`, `evaluate_coverage_ratio`, `evaluate_vehicle_value_band`) with a `Declined` > `Referred` > `Quoted` precedence in `evaluate_auto` (:296). It is **not** a pass-through and **not** a skeleton. Any note claiming `PasProvider::rate()` always returns `Quoted`, or that `underwriting.rs` is unreferenced, is describing an earlier state and is wrong as of this date.
+
+**Do:**
+1. `cargo test -p rating` and confirm it passes. **This has NOT been verified** — the Cowork session that wrote this work order had no `cargo` binary and could only read the code. The in-file tests assert the negative paths explicitly (`three_prior_claims_is_declined`, `over_insurance_is_declined`, `underage_driver_is_declined`, `two_prior_claims_is_referred_not_declined`, `decline_wins_over_refer_when_both_present`, `missing_age_is_referred_not_silently_accepted`). If any fail, fix before committing — do not commit red tests.
+2. Commit all three files together with a message naming what it does (real Auto underwriting decisioning wired into the PAS rating provider).
+3. Build and deploy to `pas.sagesure.io`.
+
+**Verification gate — none of these alone count as done:** a green `cargo test`, a healthy pod, or `/health` returning 200. Required proof: **one real quote through the live API that returns `Declined`, and one that returns `Referred`**, with the request/response retained. These enum variants sat structurally unreachable for months; showing an approval works faster proves nothing. Show the "no".
+
+## Item 2 — Extend underwriting beyond Auto
+
+`pas.rs:78-80` documents that non-auto lines are promoted as-is pending underwriting coverage. **That pass-through is the remaining rubber-stamp surface** — property, life and health quotes currently receive no risk evaluation at all.
+
+Extend the `underwriting.rs` pattern to the other lines. Keep the existing design properties — they are the correct ones and were hard-won:
+- **Deterministic factor tables and thresholds, not an LLM call.** Do not introduce "ask a model for a risk score." A model call that looks like reasoning but has no auditable logic behind it is the exact failure mode this estate has repeated (see the `risk-scorer` "best-effort KB scrape" and the `risk_score = 0` silent-fallback bug documented in `sagesure-us`).
+- **Missing data must refer, never silently accept** — mirror `missing_age_is_referred_not_silently_accepted`.
+- **`Declined` must beat `Referred` when both fire** — mirror `decline_wins_over_refer_when_both_present`.
+- Each new line needs its own negative-path tests asserting a real decline and a real refer.
+
+Do one line at a time, tested and committed, rather than all three at once.
+
+## Item 3 — Complete the product catalog
+
+**Current state, verified by reading the migrations:** 6 products exist across 2 migrations.
+- `api/migrations/001_insurance.sql:98-102` — Auto US/USD, Life US/USD, Auto IN/INR, Life IN/INR.
+- `api/migrations/007_policy_workspace.sql:55-63` — Auto AE/AED, Property AE/AED (with the correct comment: "UAE/AED products are first-class catalog records, not a display-only currency option" — preserve that principle).
+
+**Target:** 4 lines (auto, life, health, property) × 3 markets (US/USD, AE/AED, IN/INR) = 12. **6 exist, 6 are missing:** health-US, property-US, health-IN, property-IN, health-AE, life-AE.
+
+Add them in a new migration following 007's idempotent `WHERE NOT EXISTS` pattern — do not edit 001 or 007 in place, they are already applied. Each row is a first-class catalog record with its own `country`/`currency`, not a display-time currency conversion.
+
+**Then repoint `app.sagesure.io`'s PAS surface at this system.** The auth difference is real: `sagesure-us` authenticates with self-issued HS256 (`middleware.rs`, symmetric shared secret, no JWKS/issuer/audience check) while `sagepas` validates Entra-issued RS256 against Microsoft's JWKS.
+
+### 🔒 DECIDED 2026-08-02 by Parvind — option (b), Entra wholesale. Do not re-open.
+
+`app.sagesure.io` moves to Entra ID authentication, matching `sagepas` (and the India platform). **No token-translation proxy is to be built.**
+
+Rationale, recorded so it isn't re-litigated:
+- **There are zero active users on `app.sagesure.io`** (confirmed by Parvind, 2026-08-02), so the usual objection to (b) — "every user's login changes" — has no cost here.
+- A token-translation proxy in its cheap form (service-principal exchange) would make every request arriving at `sagepas` carry a single service identity instead of the real user. `sagepas` has `PasRole::Underwriter` and bitemporal policy/premium ledgers — i.e. an audit trail whose entire purpose is answering *who bound this policy*. Collapsing all users into one principal is a correctness defect in exactly the system where attribution is the product.
+- The alternative proxy form (on-behalf-of flow) preserves per-user identity but requires the user to already hold an Entra identity — at which point you have moved to Entra anyway and (a)'s only advantage disappears.
+- `sagesure-us`'s current HS256 scheme is not merely *different* from Entra, it is materially weaker (symmetric shared secret, no JWKS, no issuer/audience validation). Option (a) would have preserved that as a standing liability ahead of real-customer due diligence.
+
+**Scope note for whoever picks this up:** the `sagesure-us` side of this change (frontend login + `middleware.rs` validation) belongs to the `sagesure-us` CC, not this repo. Each CC is scoped to its own repo — do not make cross-repo edits from here. This repo's side is only to confirm `sagepas` accepts the Entra tokens that `app.sagesure.io` will begin presenting, and that role claims map correctly onto `PasRole`.
+
+## Standing rules for this work order
+
+- **No new `.md` files.** This estate has a documented failure log spanning 70+ orphaned status/summary docs. Updates go in this `CLAUDE.md`.
+- **Never call something done without runtime proof.** Build passing, pod ready, `/health` 200, and unit tests green are all necessary and none are sufficient.
+- **Commit as you go.** The single highest-risk thing found in this repo today was 450 lines of finished, working underwriting logic sitting untracked.
+
+---
+
 ## General
 - Follow existing patterns in the codebase
 - Use proper component structure based on component `type` in the `-hsmeta.json` file

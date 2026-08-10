@@ -1657,6 +1657,7 @@ name = "infra"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "azure_core",
  "azure_identity",
  "azure_storage",
@@ -1670,6 +1671,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "thiserror 1.0.69",
+ "time",
  "tokio",
  "tracing",
 ]

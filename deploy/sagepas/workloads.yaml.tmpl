@@ -14,6 +14,11 @@ metadata:
 data:
   PORT: "3000"
   NODE_ENV: "production"
+  # Without this, tracing_subscriber::EnvFilter::from_default_env() runs
+  # with no RUST_LOG set and emits nothing at all — this bit the platform
+  # once already (see the 2026-07 P0 incident: migration errors suppressed
+  # by warn! with no RUST_LOG). Keep it set.
+  RUST_LOG: "info,api=debug,infra=debug,rating=debug"
   STORAGE_ACCOUNT_NAME: "${STORAGE_ACCOUNT_NAME}"
   STORAGE_CONTAINER_NAME: "sagepas-documents"
   AZURE_ENTRA_TENANT_ID: "e9394f90-446d-41dd-8c8c-98ac08c5f090"

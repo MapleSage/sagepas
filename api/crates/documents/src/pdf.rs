@@ -42,6 +42,22 @@ impl DocumentGenerator {
         Ok(url)
     }
 
+    /// Download a previously generated document by the URL
+    /// `generate_policy_document` returned for it.
+    ///
+    /// The storage account backing this has public access disabled (as it
+    /// should — these are policyholders' documents) and no CORS rules, so a
+    /// browser can never fetch a blob URL directly. The API must act as the
+    /// authenticated intermediary and stream the bytes itself.
+    pub async fn download_by_url(&self, url: &str) -> anyhow::Result<Vec<u8>> {
+        let blob_name = url
+            .strip_prefix(&format!("{}/", self.base_url))
+            .ok_or_else(|| {
+                anyhow::anyhow!("URL '{url}' is not a blob under this document store's base URL")
+            })?;
+        self.blob.download(blob_name).await
+    }
+
     /// Render a policy PDF without choosing a persistence backend. The
     /// standalone local runtime stores these bytes on disk; production keeps
     /// using Azure Blob Storage through `generate_policy_document`.
