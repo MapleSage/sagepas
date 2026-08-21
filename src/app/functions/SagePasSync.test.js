@@ -146,3 +146,98 @@ test("rejects cross-portal dispatch and missing event IDs without calling HubSpo
   assert.equal((await main(context(missingEvent))).statusCode, 400);
   assert.equal(calls, 0);
 });
+
+test("create posts a new object with the given properties and returns its id", async () => {
+  let request;
+  global.fetch = async (url, init) => {
+    request = { url, init };
+    return {
+      ok: true,
+      status: 201,
+      text: async () =>
+        JSON.stringify({ id: "999888777", properties: { subject: "FNOL - ABC123" } }),
+    };
+  };
+
+  const result = await main(
+    context({
+      operation: "create",
+      portal_id: 51752298,
+      object_type: "ticket",
+      properties: { subject: "FNOL - ABC123", hs_ticket_priority: "HIGH" },
+    }),
+  );
+
+  assert.equal(result.statusCode, 201);
+  const body = parsed(result);
+  assert.equal(body.objectType, "ticket");
+  assert.equal(body.objectId, "999888777");
+  assert.match(request.url, /\/crm\/v3\/objects\/tickets$/);
+  assert.equal(request.init.method, "POST");
+  const sentProperties = JSON.parse(request.init.body).properties;
+  assert.equal(sentProperties.subject, "FNOL - ABC123");
+  assert.equal(sentProperties.hs_ticket_priority, "HIGH");
+});
+
+test("create rejects an empty properties object without calling HubSpot", async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    throw new Error("must not be called");
+  };
+
+  const result = await main(
+    context({
+      operation: "create",
+      portal_id: 51752298,
+      object_type: "ticket",
+      properties: {},
+    }),
+  );
+  assert.equal(result.statusCode, 400);
+  assert.equal(calls, 0);
+});
+
+test("associate links two objects via the v4 associations API with the correct type id", async () => {
+  let request;
+  global.fetch = async (url, init) => {
+    request = { url, init };
+    return { ok: true, status: 200, text: async () => "" };
+  };
+
+  const result = await main(
+    context({
+      operation: "associate",
+      from_type: "ticket",
+      from_id: "111",
+      to_type: "contact",
+      to_id: "222",
+    }),
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.match(request.url, /\/crm\/v4\/objects\/tickets\/111\/associations\/contacts\/222$/);
+  assert.equal(request.init.method, "PUT");
+  const payload = JSON.parse(request.init.body);
+  assert.equal(payload[0].associationTypeId, 16);
+});
+
+test("associate rejects an unsupported object type pairing without calling HubSpot", async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    throw new Error("must not be called");
+  };
+
+  const result = await main(
+    context({
+      operation: "associate",
+      from_type: "contact",
+      from_id: "111",
+      to_type: "ticket",
+      to_id: "222",
+    }),
+  );
+  assert.equal(result.statusCode, 400);
+  assert.equal(calls, 0);
+});

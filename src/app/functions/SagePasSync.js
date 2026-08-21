@@ -101,6 +101,25 @@ function identity(body) {
   return { portalId, objectType, objectId };
 }
 
+// Same portal/objectType validation as identity(), minus objectId --
+// used by create(), where the object doesn't exist yet.
+function identityForCreate(body) {
+  const portalId = Number(body.portal_id ?? body.portalId);
+  const objectType = String(body.object_type ?? body.objectType ?? "")
+    .trim()
+    .toLowerCase();
+  if (!Number.isSafeInteger(portalId) || portalId <= 0) {
+    throw new Error("portalId must be a positive integer");
+  }
+  if (portalId !== PORTAL_ID) {
+    throw new Error(`portalId must be ${PORTAL_ID}`);
+  }
+  if (!OBJECT_TYPES[objectType]) {
+    throw new Error("objectType must be contact, company, deal, or ticket");
+  }
+  return { portalId, objectType };
+}
+
 function objectValue(value) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value
@@ -259,6 +278,70 @@ async function push(body) {
   return writeProperties(body, body.properties);
 }
 
+// Unlike push/upsert (which sync the fixed sagepas_* property set), create
+// accepts whatever standard + custom properties the caller supplies -- it's
+// a general "make a new CRM object" primitive, not scoped to SagePAS's own
+// properties. Trust boundary is the shared secret, same as every other op.
+async function create(body) {
+  const { objectType } = identityForCreate(body);
+  const properties = objectValue(body.properties);
+  if (Object.keys(properties).length === 0) {
+    throw new Error("properties must be a non-empty object");
+  }
+  const stringified = {};
+  for (const [name, value] of Object.entries(properties)) {
+    if (value === undefined || value === null) continue;
+    stringified[name] = String(value);
+  }
+  const record = await hubspot(`/crm/v3/objects/${OBJECT_TYPES[objectType]}`, {
+    method: "POST",
+    body: JSON.stringify({ properties: stringified }),
+  });
+  return {
+    objectType,
+    objectId: record.id,
+    properties: record.properties || {},
+  };
+}
+
+const ASSOCIATION_TYPE_ID = {
+  "ticket-contact": 16,
+  "ticket-company": 26,
+  "deal-contact": 3,
+  "deal-company": 5,
+};
+
+async function associate(body) {
+  const fromType = String(body.from_type ?? body.fromType ?? "").trim().toLowerCase();
+  const fromId = String(body.from_id ?? body.fromId ?? "").trim();
+  const toType = String(body.to_type ?? body.toType ?? "").trim().toLowerCase();
+  const toId = String(body.to_id ?? body.toId ?? "").trim();
+  if (!OBJECT_TYPES[fromType] || !OBJECT_TYPES[toType]) {
+    throw new Error("from_type/to_type must be contact, company, deal, or ticket");
+  }
+  if (!fromId || !toId) throw new Error("from_id and to_id are required");
+
+  const typeKey = `${fromType}-${toType}`;
+  const associationTypeId = ASSOCIATION_TYPE_ID[typeKey];
+  if (!associationTypeId) {
+    throw new Error(`unsupported association: ${typeKey}`);
+  }
+
+  await hubspot(
+    `/crm/v4/objects/${OBJECT_TYPES[fromType]}/${encodeURIComponent(fromId)}/associations/${OBJECT_TYPES[toType]}/${encodeURIComponent(toId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify([
+        {
+          associationCategory: "HUBSPOT_DEFINED",
+          associationTypeId,
+        },
+      ]),
+    },
+  );
+  return { fromType, fromId, toType, toId };
+}
+
 async function upsert(body) {
   if (!body.event_id || typeof body.event_id !== "string") {
     throw new Error("event_id is required");
@@ -290,8 +373,14 @@ exports.main = async (context = {}) => {
     if (body.operation === "upsert") {
       return response(200, await upsert(body));
     }
+    if (body.operation === "create") {
+      return response(201, await create(body));
+    }
+    if (body.operation === "associate") {
+      return response(200, await associate(body));
+    }
     return response(400, {
-      message: "operation must be health, pull, push, or upsert",
+      message: "operation must be health, pull, push, upsert, create, or associate",
     });
   } catch (error) {
     const status = Number(error?.status);
