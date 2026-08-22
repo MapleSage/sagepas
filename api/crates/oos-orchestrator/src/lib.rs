@@ -336,6 +336,7 @@ pub fn build_premium_delta_journal(
             effective_date,
             lines,
         }],
+        claim_id: None,
     }))
 }
 

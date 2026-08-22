@@ -135,13 +135,14 @@ impl PremiumSubledger {
 
         let batch_id: Uuid = sqlx::query_scalar(
             r#"
-            INSERT INTO accounting_batches (policy_id, event_type)
-            VALUES ($1, $2)
+            INSERT INTO accounting_batches (policy_id, event_type, claim_id)
+            VALUES ($1, $2, $3)
             RETURNING batch_id
             "#,
         )
         .bind(input.policy_id)
         .bind(&input.event_type)
+        .bind(input.claim_id)
         .fetch_one(&mut **tx)
         .await?;
 
@@ -267,6 +268,68 @@ impl PremiumSubledger {
         })
     }
 
+    /// Bitemporal restatement query for one claim's case reserve position:
+    /// only batches tagged with this `claim_id` (work order item 4) and only
+    /// journal lines whose `effective_date` (business time) falls on or
+    /// before `as_of_date` are summed. A correction posted later in real
+    /// time but with an earlier `effective_date` -- a backdated
+    /// re-estimation -- changes what this returns for dates on or after its
+    /// effective_date, without touching what it returns for dates before
+    /// it. That's the restatement: history answers differently once a
+    /// backdated correction exists, exactly at and after the date it claims
+    /// to be effective from, never before.
+    pub async fn get_claim_reserve_position(
+        &self,
+        claim_id: Uuid,
+        as_of_date: NaiveDate,
+    ) -> Result<ClaimReservePosition, SubledgerError> {
+        let case_reserve_text: String = sqlx::query_scalar(
+            r#"
+            SELECT COALESCE(SUM(l.amount), 0)::text
+            FROM journal_lines l
+            JOIN journal_entries e ON e.entry_id = l.entry_id
+            JOIN accounting_batches b ON b.batch_id = e.batch_id
+            WHERE b.claim_id = $1 AND l.account_no = '2410' AND e.effective_date <= $2
+            "#,
+        )
+        .bind(claim_id)
+        .bind(as_of_date)
+        .fetch_one(&**self.pool)
+        .await?;
+
+        let losses_incurred_text: String = sqlx::query_scalar(
+            r#"
+            SELECT COALESCE(SUM(l.amount), 0)::text
+            FROM journal_lines l
+            JOIN journal_entries e ON e.entry_id = l.entry_id
+            JOIN accounting_batches b ON b.batch_id = e.batch_id
+            WHERE b.claim_id = $1 AND l.account_no = '5010' AND e.effective_date <= $2
+            "#,
+        )
+        .bind(claim_id)
+        .bind(as_of_date)
+        .fetch_one(&**self.pool)
+        .await?;
+
+        let case_reserve_credit = Decimal::from_str(&case_reserve_text).map_err(|e| {
+            SubledgerError::DatabaseError(format!("invalid numeric case reserve balance: {e}"))
+        })?;
+        let losses_incurred = Decimal::from_str(&losses_incurred_text).map_err(|e| {
+            SubledgerError::DatabaseError(format!("invalid numeric losses incurred balance: {e}"))
+        })?;
+
+        Ok(ClaimReservePosition {
+            claim_id,
+            as_of_date,
+            // 2410 is a credit-normal liability; postings store credits as
+            // negative amounts (schema convention: debits positive, credits
+            // negative). Negate so a positive number here reads as "this
+            // much reserve is outstanding," not as a raw signed ledger sum.
+            case_reserve_outstanding: -case_reserve_credit,
+            losses_incurred,
+        })
+    }
+
     pub async fn verify_batch_balance(&self, batch_id: Uuid) -> Result<bool, SubledgerError> {
         let net_text: String = sqlx::query_scalar(
             r#"
@@ -323,6 +386,12 @@ pub struct BatchInput {
     pub policy_id: Uuid,
     pub event_type: String,
     pub entries: Vec<JournalEntryInput>,
+    /// Narrows this batch to the specific claim that caused it (work order
+    /// item 4), alongside `event_type` -- together they're how a batch
+    /// traces back to its originating event. `None` for batches that aren't
+    /// claim-related (e.g. the existing premium/endorsement postings).
+    #[serde(default)]
+    pub claim_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -353,6 +422,14 @@ pub struct BatchSummary {
     pub created_at: DateTime<Utc>,
     pub entry_count: usize,
     pub line_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClaimReservePosition {
+    pub claim_id: Uuid,
+    pub as_of_date: NaiveDate,
+    pub case_reserve_outstanding: Decimal,
+    pub losses_incurred: Decimal,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

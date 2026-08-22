@@ -47,6 +47,11 @@ pub struct AppState {
     pub entra_validator: Option<Arc<infra::entra_auth::EntraValidator>>,
     /// Guards the unauthenticated prospect-quote endpoint (work order item 2).
     pub prospect_rate_limiter: Arc<crate::rate_limit::RateLimiter>,
+    /// Double-entry bitemporal subledger (accounting_batches/journal_entries/
+    /// journal_lines, migration 006). Existed unwired since Phase 2 until
+    /// work order item 4 made claims case-reserve posting its first caller.
+    /// Cheap to clone: wraps a single `Arc<DbPool>` internally.
+    pub subledger: premium_ledger::PremiumSubledger,
 }
 
 impl HasPolicyLock for AppState {

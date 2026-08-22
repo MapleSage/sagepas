@@ -64,6 +64,7 @@ async fn main() -> anyhow::Result<()> {
         &config.search_key,
     ));
     let pricing = Arc::new(PricingEngine::new((*search).clone()));
+    let subledger = premium_ledger::PremiumSubledger::new(db.clone());
 
     let blob = Arc::new(BlobClient::from_managed_identity(
         &config.storage_account_name,
@@ -183,6 +184,7 @@ async fn main() -> anyhow::Result<()> {
             handlers::prospect::RATE_LIMIT_MAX_REQUESTS,
             handlers::prospect::RATE_LIMIT_WINDOW,
         )),
+        subledger,
     };
 
     tokio::spawn(handlers::hubspot::run_outbox_dispatcher(app_state.clone()));
@@ -268,6 +270,11 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/policies/:id/claims",
             get(handlers::policy_workspace::list_claims)
                 .post(handlers::policy_workspace::create_claim),
+        )
+        .route(
+            "/api/v1/policies/:id/claims/:claim_id/reserve",
+            get(handlers::policy_workspace::get_claim_reserve_as_of)
+                .patch(handlers::policy_workspace::reestimate_claim_reserve),
         )
         .route(
             "/api/v1/policies/:id/notifications",
