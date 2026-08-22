@@ -39,6 +39,8 @@ pub struct AppState {
     /// Microsoft Entra token validator — `None` when `AZURE_ENTRA_TENANT_ID`
     /// / `AZURE_ENTRA_AUDIENCE` are not configured.
     pub entra_validator: Option<Arc<infra::entra_auth::EntraValidator>>,
+    /// Guards the unauthenticated prospect-quote endpoint (work order item 2).
+    pub prospect_rate_limiter: Arc<crate::rate_limit::RateLimiter>,
 }
 
 impl HasPolicyLock for AppState {

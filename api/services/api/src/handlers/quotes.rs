@@ -40,6 +40,63 @@ pub struct QuoteRow {
     pub updated_at: chrono::DateTime<Utc>,
 }
 
+/// Resolves a requested product_id to one that actually exists, falling
+/// back by inferred insurance type (from `coverage.type` when present) or
+/// to any US product, rather than throwing an FK error. Shared by the
+/// staff-only create_quote and the anonymous prospect flow (work order
+/// item 2) so both apply the same tolerance instead of two that can drift.
+pub(crate) async fn resolve_product_id(
+    state: &AppState,
+    requested: Uuid,
+    coverage: &serde_json::Value,
+) -> Result<Uuid, (StatusCode, String)> {
+    let requested_product_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1)")
+            .bind(requested)
+            .fetch_one(&**state.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if requested_product_exists {
+        return Ok(requested);
+    }
+
+    let inferred_type = coverage
+        .get("type")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_lowercase());
+
+    let fallback_product: Option<Uuid> = if let Some(kind) = inferred_type {
+        sqlx::query_scalar(
+            "SELECT id FROM products WHERE country = 'US' AND lower(insurance_type) = $1 ORDER BY name LIMIT 1",
+        )
+        .bind(kind)
+        .fetch_optional(&**state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    } else {
+        sqlx::query_scalar("SELECT id FROM products WHERE country = 'US' ORDER BY name LIMIT 1")
+            .fetch_optional(&**state.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    };
+
+    match fallback_product {
+        Some(pid) => {
+            info!(
+                requested_product_id = %requested,
+                resolved_product_id = %pid,
+                "resolved unknown product_id to existing product"
+            );
+            Ok(pid)
+        }
+        None => Err((
+            StatusCode::BAD_REQUEST,
+            format!("invalid product_id: {requested}"),
+        )),
+    }
+}
+
 pub async fn create_quote(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -56,53 +113,7 @@ pub async fn create_quote(
         req.coverage
     };
 
-    // Some older clients/tests send a hard-coded product UUID that may not
-    // exist in this environment. Resolve to a valid product (same insurance
-    // type when available) instead of throwing an FK 500.
-    let requested_product_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1)")
-            .bind(req.product_id)
-            .fetch_one(&**state.db)
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    let mut product_id = req.product_id;
-
-    if !requested_product_exists {
-        let inferred_type = coverage
-            .get("type")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_lowercase());
-
-        let fallback_product: Option<Uuid> = if let Some(kind) = inferred_type {
-            sqlx::query_scalar(
-                "SELECT id FROM products WHERE country = 'US' AND lower(insurance_type) = $1 ORDER BY name LIMIT 1",
-            )
-            .bind(kind)
-            .fetch_optional(&**state.db)
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        } else {
-            sqlx::query_scalar("SELECT id FROM products WHERE country = 'US' ORDER BY name LIMIT 1")
-                .fetch_optional(&**state.db)
-                .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        };
-
-        if let Some(pid) = fallback_product {
-            info!(
-                requested_product_id = %req.product_id,
-                resolved_product_id = %pid,
-                "quote create resolved unknown product_id to existing product"
-            );
-            product_id = pid;
-        } else {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                format!("invalid product_id: {}", req.product_id),
-            ));
-        }
-    }
+    let product_id = resolve_product_id(&state, req.product_id, &coverage).await?;
 
     let row = sqlx::query_as::<_, QuoteRow>(
         "INSERT INTO quotes (id, customer_id, product_id, state, premium, currency, coverage)

@@ -27,6 +27,7 @@ mod auth_extract;
 mod handlers;
 mod middleware;
 mod migration_runner;
+mod rate_limit;
 mod state;
 
 use state::AppState;
@@ -142,6 +143,11 @@ async fn main() -> anyhow::Result<()> {
         .connect_timeout(std::time::Duration::from_secs(3))
         .timeout(std::time::Duration::from_secs(15))
         .redirect(reqwest::redirect::Policy::none())
+        // Cloudflare (fronting the bridge at *.hs-sites.com) blocks reqwest's
+        // default "reqwest/x.y.z" User-Agent outright (403 managed
+        // challenge) -- confirmed live from sagesure-us's identical client,
+        // independent of TLS backend. Any non-default UA clears it.
+        .user_agent("SageSure-HubSpot-Bridge/1.0")
         .build()?;
 
     let app_state = AppState {
@@ -164,6 +170,10 @@ async fn main() -> anyhow::Result<()> {
         hubspot_http_client,
         hubspot_dispatch_notify: Arc::new(tokio::sync::Notify::new()),
         entra_validator,
+        prospect_rate_limiter: Arc::new(rate_limit::RateLimiter::new(
+            handlers::prospect::RATE_LIMIT_MAX_REQUESTS,
+            handlers::prospect::RATE_LIMIT_WINDOW,
+        )),
     };
 
     tokio::spawn(handlers::hubspot::run_outbox_dispatcher(app_state.clone()));
@@ -189,6 +199,10 @@ async fn main() -> anyhow::Result<()> {
             post(handlers::pricing::estimate),
         )
         .route("/api/v1/rating/quote", post(handlers::rating::quote))
+        .route(
+            "/api/v1/quotes/prospect",
+            post(handlers::prospect::prospect_quote),
+        )
         .route(
             "/api/v1/quotes",
             get(handlers::quotes::list_quotes).post(handlers::quotes::create_quote),

@@ -36,7 +36,7 @@ fn default_currency() -> String {
     "USD".into()
 }
 
-fn validate_customer(
+pub(crate) fn validate_customer(
     mut req: CreateCustomerRequest,
 ) -> Result<CreateCustomerRequest, (StatusCode, String)> {
     req.name = req.name.trim().to_string();
@@ -102,7 +102,7 @@ fn validate_customer(
     Ok(req)
 }
 
-fn customer_write_error(error: sqlx::Error) -> (StatusCode, String) {
+pub(crate) fn customer_write_error(error: sqlx::Error) -> (StatusCode, String) {
     if let sqlx::Error::Database(database_error) = &error {
         return match database_error.code().as_deref() {
             Some("23505") => (StatusCode::CONFLICT, "customer already exists".into()),
@@ -130,6 +130,68 @@ pub struct CustomerRow {
     pub national_id_type: Option<String>,
     pub address: Option<String>,
     pub created_at: chrono::DateTime<Utc>,
+}
+
+/// Inserts a user (find-or-create by email) and a customer row inside an
+/// already-open transaction. Caller owns the transaction lifecycle (advisory
+/// lock, dedup check, commit) -- this is just the two inserts, factored out
+/// so the staff-only `create_customer` handler and the anonymous prospect
+/// flow (work order item 2) share one code path instead of two that can
+/// drift.
+pub(crate) async fn insert_customer_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    req: CreateCustomerRequest,
+) -> Result<CustomerRow, sqlx::Error> {
+    let user_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM users WHERE LOWER(email) = $1 ORDER BY created_at LIMIT 1",
+    )
+    .bind(&req.email)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let user_id = match user_id {
+        Some(user_id) => user_id,
+        None => {
+            let user_id = Uuid::new_v4();
+            let password_hash = format!("customer-only:{user_id}");
+            sqlx::query_scalar::<_, Uuid>(
+                r#"
+                INSERT INTO users (id, email, name, password_hash, role)
+                VALUES ($1, $2, $3, $4, 'consumer')
+                ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+                RETURNING id
+                "#,
+            )
+            .bind(user_id)
+            .bind(&req.email)
+            .bind(&req.name)
+            .bind(password_hash)
+            .fetch_one(&mut **tx)
+            .await?
+        }
+    };
+
+    sqlx::query_as::<_, CustomerRow>(
+        r#"
+        INSERT INTO customers
+            (id, user_id, name, email, phone, country, currency,
+             national_id, national_id_type, address)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id, user_id, name, email, phone, country, currency,
+                  national_id, national_id_type, address, created_at
+        "#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(user_id)
+    .bind(req.name)
+    .bind(req.email)
+    .bind(req.phone)
+    .bind(req.country)
+    .bind(req.currency)
+    .bind(req.national_id)
+    .bind(req.national_id_type)
+    .bind(req.address)
+    .fetch_one(&mut **tx)
+    .await
 }
 
 /// POST /api/v1/customers
@@ -167,59 +229,9 @@ pub async fn create_customer(
         ));
     }
 
-    let user_id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM users WHERE LOWER(email) = $1 ORDER BY created_at LIMIT 1",
-    )
-    .bind(&req.email)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(customer_write_error)?;
-    let user_id = match user_id {
-        Some(user_id) => user_id,
-        None => {
-            let user_id = Uuid::new_v4();
-            let password_hash = format!("customer-only:{user_id}");
-            sqlx::query_scalar::<_, Uuid>(
-                r#"
-                INSERT INTO users (id, email, name, password_hash, role)
-                VALUES ($1, $2, $3, $4, 'consumer')
-                ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-                RETURNING id
-                "#,
-            )
-            .bind(user_id)
-            .bind(&req.email)
-            .bind(&req.name)
-            .bind(password_hash)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(customer_write_error)?
-        }
-    };
-
-    let row = sqlx::query_as::<_, CustomerRow>(
-        r#"
-        INSERT INTO customers
-            (id, user_id, name, email, phone, country, currency,
-             national_id, national_id_type, address)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING id, user_id, name, email, phone, country, currency,
-                  national_id, national_id_type, address, created_at
-        "#,
-    )
-    .bind(Uuid::new_v4())
-    .bind(user_id)
-    .bind(req.name)
-    .bind(req.email)
-    .bind(req.phone)
-    .bind(req.country)
-    .bind(req.currency)
-    .bind(req.national_id)
-    .bind(req.national_id_type)
-    .bind(req.address)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(customer_write_error)?;
+    let row = insert_customer_in_tx(&mut tx, req)
+        .await
+        .map_err(customer_write_error)?;
 
     tx.commit().await.map_err(customer_write_error)?;
     Ok(Json(row))

@@ -8,5 +8,6 @@ pub mod policies;
 pub mod policy_workspace;
 pub mod pricing;
 pub mod products;
+pub mod prospect;
 pub mod quotes;
 pub mod rating;

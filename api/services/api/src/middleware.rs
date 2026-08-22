@@ -26,6 +26,10 @@ fn is_public_path(path: &str, dev_local_auth_enabled: bool) -> bool {
         // here or it silently becomes not-actually-anonymous (confirmed live
         // with a real 401 before this fix -- work order item 5).
         || path == "/api/v1/rating/quote"
+        // Prospect quoting is the other deliberately anonymous path (work
+        // order item 2) -- capture at intent (a real premium exists to
+        // save), not at entry. Rate-limited at the handler, not here.
+        || path == "/api/v1/quotes/prospect"
         || dev_auth_path
 }
 
@@ -153,6 +157,13 @@ mod tests {
     }
 
     #[test]
+    fn prospect_quote_is_public_regardless_of_dev_auth_setting() {
+        // Work order item 2: same reasoning as rating/quote above.
+        assert!(is_public_path("/api/v1/quotes/prospect", false));
+        assert!(is_public_path("/api/v1/quotes/prospect", true));
+    }
+
+    #[test]
     fn health_checks_are_public() {
         assert!(is_public_path("/health", false));
         assert!(is_public_path("/api/v1/health", false));
@@ -174,5 +185,6 @@ mod tests {
         // A path that merely starts similarly must not accidentally match.
         assert!(!is_public_path("/api/v1/rating/quote/extra", false));
         assert!(!is_public_path("/api/v1/rating-quote", false));
+        assert!(!is_public_path("/api/v1/quotes/prospect/extra", false));
     }
 }
