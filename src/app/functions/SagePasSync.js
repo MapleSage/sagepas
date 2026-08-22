@@ -304,6 +304,54 @@ async function create(body) {
   };
 }
 
+// Canonical identity resolution: which HubSpot contact is this email?
+// FNOL, UW, and PAS's own auto-link path all call this instead of doing
+// their own independent search-then-create -- one contact per email,
+// regardless of which system encounters that person first. Searches before
+// creating; never creates a second contact for an email that already has one.
+async function findOrCreateContactByEmail(body) {
+  const email = String(body.email ?? "").trim().toLowerCase();
+  if (!email) throw new Error("email is required");
+
+  const searchResult = await hubspot("/crm/v3/objects/contacts/search", {
+    method: "POST",
+    body: JSON.stringify({
+      filterGroups: [
+        { filters: [{ propertyName: "email", operator: "EQ", value: email }] },
+      ],
+      properties: ["email", "firstname", "lastname", "phone"],
+      limit: 1,
+    }),
+  });
+
+  const existing = (searchResult.results || [])[0];
+  if (existing) {
+    return {
+      objectId: existing.id,
+      created: false,
+      properties: existing.properties || {},
+    };
+  }
+
+  const extra = objectValue(body.properties);
+  const properties = { email };
+  for (const [name, value] of Object.entries(extra)) {
+    if (value === undefined || value === null || value === "") continue;
+    properties[name] = String(value);
+  }
+
+  const record = await hubspot("/crm/v3/objects/contacts", {
+    method: "POST",
+    body: JSON.stringify({ properties }),
+  });
+
+  return {
+    objectId: record.id,
+    created: true,
+    properties: record.properties || {},
+  };
+}
+
 const ASSOCIATION_TYPE_ID = {
   "ticket-contact": 16,
   "ticket-company": 26,
@@ -379,8 +427,12 @@ exports.main = async (context = {}) => {
     if (body.operation === "associate") {
       return response(200, await associate(body));
     }
+    if (body.operation === "find_or_create_contact_by_email") {
+      return response(200, await findOrCreateContactByEmail(body));
+    }
     return response(400, {
-      message: "operation must be health, pull, push, upsert, create, or associate",
+      message:
+        "operation must be health, pull, push, upsert, create, associate, or find_or_create_contact_by_email",
     });
   } catch (error) {
     const status = Number(error?.status);

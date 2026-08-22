@@ -241,3 +241,80 @@ test("associate rejects an unsupported object type pairing without calling HubSp
   assert.equal(result.statusCode, 400);
   assert.equal(calls, 0);
 });
+
+test("find_or_create_contact_by_email returns the existing contact without creating a second one", async () => {
+  const requests = [];
+  global.fetch = async (url, init) => {
+    requests.push({ url, init });
+    return {
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          results: [{ id: "555111", properties: { email: "jane@example.com", firstname: "Jane" } }],
+        }),
+    };
+  };
+
+  const result = await main(
+    context({
+      operation: "find_or_create_contact_by_email",
+      email: "JANE@Example.com",
+    }),
+  );
+
+  assert.equal(result.statusCode, 200);
+  const body = parsed(result);
+  assert.equal(body.objectId, "555111");
+  assert.equal(body.created, false);
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /\/crm\/v3\/objects\/contacts\/search$/);
+  const searchBody = JSON.parse(requests[0].init.body);
+  assert.equal(searchBody.filterGroups[0].filters[0].value, "jane@example.com");
+});
+
+test("find_or_create_contact_by_email creates a new contact when no match exists", async () => {
+  const requests = [];
+  global.fetch = async (url, init) => {
+    requests.push({ url, init });
+    if (url.endsWith("/search")) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ results: [] }) };
+    }
+    return {
+      ok: true,
+      status: 201,
+      text: async () =>
+        JSON.stringify({ id: "999222", properties: { email: "new@example.com", firstname: "New" } }),
+    };
+  };
+
+  const result = await main(
+    context({
+      operation: "find_or_create_contact_by_email",
+      email: "new@example.com",
+      properties: { firstname: "New", lastname: "Person" },
+    }),
+  );
+
+  assert.equal(result.statusCode, 200);
+  const body = parsed(result);
+  assert.equal(body.objectId, "999222");
+  assert.equal(body.created, true);
+  assert.equal(requests.length, 2);
+  assert.match(requests[1].url, /\/crm\/v3\/objects\/contacts$/);
+  const createBody = JSON.parse(requests[1].init.body);
+  assert.equal(createBody.properties.email, "new@example.com");
+  assert.equal(createBody.properties.firstname, "New");
+});
+
+test("find_or_create_contact_by_email rejects a missing email without calling HubSpot", async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    throw new Error("must not be called");
+  };
+
+  const result = await main(context({ operation: "find_or_create_contact_by_email" }));
+  assert.equal(result.statusCode, 400);
+  assert.equal(calls, 0);
+});
