@@ -25,6 +25,7 @@ use tracing::{error, info, warn};
 
 mod auth_extract;
 mod handlers;
+mod hubspot_bridge;
 mod middleware;
 mod migration_runner;
 mod rate_limit;

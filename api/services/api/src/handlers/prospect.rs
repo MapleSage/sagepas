@@ -18,11 +18,8 @@ use crate::handlers::customers::{
     validate_customer,
 };
 use crate::handlers::quotes::{QuoteRow, resolve_product_id};
+use crate::hubspot_bridge;
 use crate::state::AppState;
-
-/// Matches sagepas's own PORTAL_ID (SagePasSync.js) -- the bridge rejects
-/// any other portal_id outright.
-const BRIDGE_PORTAL_ID: i64 = 51752298;
 
 pub const RATE_LIMIT_MAX_REQUESTS: usize = 10;
 pub const RATE_LIMIT_WINDOW: std::time::Duration = std::time::Duration::from_secs(60);
@@ -80,74 +77,6 @@ fn map_rating_error(err: RatingError) -> (StatusCode, String) {
     let body =
         serde_json::to_string(&err).unwrap_or_else(|_| "{\"error\":\"rating_failed\"}".to_string());
     (status, body)
-}
-
-/// Same shared-secret bridge call pattern as `handlers::hubspot`'s outbox
-/// dispatcher, for the one operation that module doesn't need: resolving
-/// (not just syncing) a contact's identity before any PAS record exists.
-async fn find_or_create_contact(
-    state: &AppState,
-    email: &str,
-    name: &str,
-    phone: &str,
-) -> Result<String, (StatusCode, String)> {
-    let bridge_url = state.hubspot_bridge_url.as_deref().ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            "HubSpot bridge is not configured".to_string(),
-        )
-    })?;
-    let bridge_secret = state.hubspot_bridge_secret.as_deref().ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            "HubSpot bridge is not configured".to_string(),
-        )
-    })?;
-
-    let (firstname, lastname) = match name.split_once(' ') {
-        Some((first, rest)) => (first.to_string(), rest.trim().to_string()),
-        None => (name.to_string(), String::new()),
-    };
-
-    let resp = state
-        .hubspot_http_client
-        .post(bridge_url)
-        .bearer_auth(bridge_secret)
-        .json(&serde_json::json!({
-            "operation": "find_or_create_contact_by_email",
-            "email": email,
-            "properties": {
-                "firstname": firstname,
-                "lastname": lastname,
-                "phone": phone,
-            },
-        }))
-        .send()
-        .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("HubSpot bridge request failed: {e}")))?;
-
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        return Err((
-            StatusCode::BAD_GATEWAY,
-            format!("HubSpot bridge returned {status}: {body}"),
-        ));
-    }
-
-    let body: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("invalid bridge response: {e}")))?;
-    body["objectId"]
-        .as_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_GATEWAY,
-                "bridge response missing objectId".to_string(),
-            )
-        })
 }
 
 /// POST /api/v1/quotes/prospect -- unauthenticated, rate-limited.
@@ -229,13 +158,6 @@ pub async fn prospect_quote(
         )
     })?;
 
-    // Bridge call before opening the DB transaction: if HubSpot identity
-    // resolution fails, nothing gets written -- no half-created customer
-    // with no linked contact.
-    let hubspot_object_id =
-        find_or_create_contact(&state, &customer_req.email, &customer_req.name, &customer_req.phone)
-            .await?;
-
     let coverage = serde_json::json!({ "type": insurance_type });
     let product_id = resolve_product_id(&state, req.product_id, &coverage).await?;
 
@@ -262,29 +184,25 @@ pub async fn prospect_quote(
     .await
     .map_err(customer_write_error)?;
 
+    // Either branch resolves + upserts the HubSpot link inside this same
+    // transaction: the existing-customer branch does it explicitly here,
+    // the new-customer branch gets it for free from insert_customer_in_tx
+    // (work order item 3) -- one path, not two that can drift.
     let customer_id = match existing_customer {
-        Some(row) => row.id,
-        None => insert_customer_in_tx(&mut tx, customer_req)
-            .await
-            .map_err(customer_write_error)?
-            .id,
+        Some(row) => {
+            hubspot_bridge::ensure_link(
+                &mut tx,
+                &state,
+                row.id,
+                &customer_req.email,
+                &customer_req.name,
+                &customer_req.phone,
+            )
+            .await?;
+            row.id
+        }
+        None => insert_customer_in_tx(&mut tx, &state, customer_req).await?.id,
     };
-
-    sqlx::query(
-        r#"
-        INSERT INTO hubspot_record_links (portal_id, object_type, object_id, customer_id)
-        VALUES ($1, 'contact', $2, $3)
-        ON CONFLICT (portal_id, object_type, object_id) DO UPDATE SET
-            customer_id = EXCLUDED.customer_id,
-            updated_at = NOW()
-        "#,
-    )
-    .bind(BRIDGE_PORTAL_ID)
-    .bind(&hubspot_object_id)
-    .bind(customer_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(customer_write_error)?;
 
     let quote = sqlx::query_as::<_, QuoteRow>(
         r#"

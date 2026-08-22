@@ -138,16 +138,23 @@ pub struct CustomerRow {
 /// so the staff-only `create_customer` handler and the anonymous prospect
 /// flow (work order item 2) share one code path instead of two that can
 /// drift.
+/// Inserts a user + customer, then resolves and writes the HubSpot link in
+/// the same transaction (work order item 3) -- every caller of this
+/// function gets a linked customer for free, not just the ones that
+/// remember to ask. `upsert_context` still exists for manual correction,
+/// but it stops being the only path that ever writes a link row.
 pub(crate) async fn insert_customer_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    state: &AppState,
     req: CreateCustomerRequest,
-) -> Result<CustomerRow, sqlx::Error> {
+) -> Result<CustomerRow, (StatusCode, String)> {
     let user_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM users WHERE LOWER(email) = $1 ORDER BY created_at LIMIT 1",
     )
     .bind(&req.email)
     .fetch_optional(&mut **tx)
-    .await?;
+    .await
+    .map_err(customer_write_error)?;
     let user_id = match user_id {
         Some(user_id) => user_id,
         None => {
@@ -166,11 +173,12 @@ pub(crate) async fn insert_customer_in_tx(
             .bind(&req.name)
             .bind(password_hash)
             .fetch_one(&mut **tx)
-            .await?
+            .await
+            .map_err(customer_write_error)?
         }
     };
 
-    sqlx::query_as::<_, CustomerRow>(
+    let row = sqlx::query_as::<_, CustomerRow>(
         r#"
         INSERT INTO customers
             (id, user_id, name, email, phone, country, currency,
@@ -182,9 +190,9 @@ pub(crate) async fn insert_customer_in_tx(
     )
     .bind(Uuid::new_v4())
     .bind(user_id)
-    .bind(req.name)
-    .bind(req.email)
-    .bind(req.phone)
+    .bind(&req.name)
+    .bind(&req.email)
+    .bind(&req.phone)
     .bind(req.country)
     .bind(req.currency)
     .bind(req.national_id)
@@ -192,6 +200,11 @@ pub(crate) async fn insert_customer_in_tx(
     .bind(req.address)
     .fetch_one(&mut **tx)
     .await
+    .map_err(customer_write_error)?;
+
+    crate::hubspot_bridge::ensure_link(tx, state, row.id, &req.email, &req.name, &req.phone).await?;
+
+    Ok(row)
 }
 
 /// POST /api/v1/customers
@@ -229,9 +242,7 @@ pub async fn create_customer(
         ));
     }
 
-    let row = insert_customer_in_tx(&mut tx, req)
-        .await
-        .map_err(customer_write_error)?;
+    let row = insert_customer_in_tx(&mut tx, &state, req).await?;
 
     tx.commit().await.map_err(customer_write_error)?;
     Ok(Json(row))
