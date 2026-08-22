@@ -5,8 +5,16 @@ const { main } = require("./SagePasSync");
 
 const SECRET = "unit-test-bridge-secret";
 
-function context(body, headers = { "x-sagepas-bridge-secret": SECRET }) {
-  return { body, headers };
+// accountId defaults to the dev/test portal, mirroring what HubSpot injects
+// when this function actually runs there. Tests that care about a different
+// invoking portal (e.g. proving production promotion needs no code change)
+// pass accountId explicitly.
+function context(
+  body,
+  headers = { "x-sagepas-bridge-secret": SECRET },
+  accountId = 51752298,
+) {
+  return { body, headers, accountId };
 }
 
 function parsed(result) {
@@ -137,6 +145,9 @@ test("rejects cross-portal dispatch and missing event IDs without calling HubSpo
     throw new Error("must not be called");
   };
 
+  // Body claims a different portal than the one HubSpot says is actually
+  // invoking this call (accountId defaults to 51752298 in context()) --
+  // must be rejected regardless of which portal that happens to be.
   const wrongPortal = outbox("deal");
   wrongPortal.portal_id = 3475345;
   assert.equal((await main(context(wrongPortal))).statusCode, 400);
@@ -144,6 +155,40 @@ test("rejects cross-portal dispatch and missing event IDs without calling HubSpo
   const missingEvent = outbox("deal");
   delete missingEvent.event_id;
   assert.equal((await main(context(missingEvent))).statusCode, 400);
+  assert.equal(calls, 0);
+});
+
+test("work order item 9: promotion to a different portal needs no code change", async () => {
+  // Same operation as the "translates a Rust Deal outbox snapshot" test
+  // above, but invoked as if this exact deployed code were running under
+  // the production portal (3475345) instead of the dev/test one -- proves
+  // portal identity is resolved from HubSpot's own accountId, not from
+  // anything hardcoded or configured in this file.
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({ updatedAt: "2026-08-22T00:00:00Z" }),
+  });
+
+  const productionPortalEvent = outbox("deal");
+  productionPortalEvent.portal_id = 3475345;
+
+  const result = await main(context(productionPortalEvent, undefined, 3475345));
+  assert.equal(result.statusCode, 200);
+  assert.equal(parsed(result).portalId, 3475345);
+});
+
+test("rejects pull/push/upsert/create when the invoking account cannot be resolved", async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    throw new Error("must not be called");
+  };
+
+  // Passing null (not undefined) so the default-parameter value doesn't
+  // kick in -- this simulates HubSpot genuinely not supplying accountId.
+  const result = await main(context(outbox("deal"), undefined, null));
+  assert.equal(result.statusCode, 500);
   assert.equal(calls, 0);
 });
 

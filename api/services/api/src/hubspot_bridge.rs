@@ -15,10 +15,6 @@ use uuid::Uuid;
 
 use crate::state::AppState;
 
-/// Matches sagepas's own PORTAL_ID (SagePasSync.js) -- the bridge rejects
-/// any other portal_id outright.
-pub(crate) const BRIDGE_PORTAL_ID: i64 = 51752298;
-
 pub(crate) async fn find_or_create_contact(
     state: &AppState,
     email: &str,
@@ -106,7 +102,7 @@ pub(crate) async fn ensure_link(
             updated_at = NOW()
         "#,
     )
-    .bind(BRIDGE_PORTAL_ID)
+    .bind(state.hubspot_portal_id)
     .bind(&object_id)
     .bind(customer_id)
     .execute(&mut **tx)

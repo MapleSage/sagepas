@@ -140,6 +140,13 @@ async fn main() -> anyhow::Result<()> {
             "HubSpot bridge integration is fail-closed until both environment values are configured"
         );
     }
+    // Matches sagepas's own dev/test portal by default -- the value this
+    // hardcoded constant always was, before item 9 made it a config change
+    // instead of a code change for promotion to a different portal.
+    let hubspot_portal_id: i64 = std::env::var("HUBSPOT_PORTAL_ID")
+        .ok()
+        .and_then(|value| value.trim().parse().ok())
+        .unwrap_or(51752298);
     let hubspot_http_client = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(3))
         .timeout(std::time::Duration::from_secs(15))
@@ -168,6 +175,7 @@ async fn main() -> anyhow::Result<()> {
         projector_bootstrap_at: bootstrap.replayed_at,
         hubspot_bridge_url,
         hubspot_bridge_secret,
+        hubspot_portal_id,
         hubspot_http_client,
         hubspot_dispatch_notify: Arc::new(tokio::sync::Notify::new()),
         entra_validator,

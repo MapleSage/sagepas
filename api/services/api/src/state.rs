@@ -33,6 +33,12 @@ pub struct AppState {
     /// Dedicated shared secret for the internal bridge boundary. It is held in
     /// process memory only and is never persisted or serialized.
     pub hubspot_bridge_secret: Option<String>,
+    /// Portal ID written into `hubspot_record_links` and validated against
+    /// by the bridge's own `identity()` check. Configurable (`HUBSPOT_PORTAL_ID`)
+    /// so a promotion to a different HubSpot portal is a config change, not
+    /// a code change -- work order item 9's Rust-side twin of the same
+    /// hardcoded-portal problem fixed in SagePasSync.js.
+    pub hubspot_portal_id: i64,
     pub hubspot_http_client: reqwest::Client,
     /// Wakes the durable dispatcher after a transaction commits new work.
     pub hubspot_dispatch_notify: Arc<tokio::sync::Notify>,

@@ -1,6 +1,5 @@
 const crypto = require("crypto");
 
-const PORTAL_ID = 51752298;
 const OBJECT_TYPES = {
   contact: "contacts",
   company: "companies",
@@ -82,7 +81,15 @@ function bodyOf(context) {
   return body || {};
 }
 
-function identity(body) {
+// The caller-supplied portal_id is checked against accountId -- the real
+// invoking portal, which HubSpot injects into every serverless function
+// call and which this code never chooses or stores. That makes this
+// function portal-agnostic by construction: the same deployed code is
+// correct in the dev/test portal, the production portal, and any future
+// one, with nothing to update at promotion time. (Previously this checked
+// against a portal ID hardcoded in this file, which was correct only for
+// the portal it happened to be written against -- work order item 9.)
+function identity(body, accountId) {
   const portalId = Number(body.portal_id ?? body.portalId);
   const objectType = String(body.object_type ?? body.objectType ?? "")
     .trim()
@@ -91,8 +98,8 @@ function identity(body) {
   if (!Number.isSafeInteger(portalId) || portalId <= 0) {
     throw new Error("portalId must be a positive integer");
   }
-  if (portalId !== PORTAL_ID) {
-    throw new Error(`portalId must be ${PORTAL_ID}`);
+  if (portalId !== accountId) {
+    throw new Error(`portalId must match the invoking HubSpot account (${accountId})`);
   }
   if (!OBJECT_TYPES[objectType]) {
     throw new Error("objectType must be contact, company, deal, or ticket");
@@ -103,7 +110,7 @@ function identity(body) {
 
 // Same portal/objectType validation as identity(), minus objectId --
 // used by create(), where the object doesn't exist yet.
-function identityForCreate(body) {
+function identityForCreate(body, accountId) {
   const portalId = Number(body.portal_id ?? body.portalId);
   const objectType = String(body.object_type ?? body.objectType ?? "")
     .trim()
@@ -111,8 +118,8 @@ function identityForCreate(body) {
   if (!Number.isSafeInteger(portalId) || portalId <= 0) {
     throw new Error("portalId must be a positive integer");
   }
-  if (portalId !== PORTAL_ID) {
-    throw new Error(`portalId must be ${PORTAL_ID}`);
+  if (portalId !== accountId) {
+    throw new Error(`portalId must match the invoking HubSpot account (${accountId})`);
   }
   if (!OBJECT_TYPES[objectType]) {
     throw new Error("objectType must be contact, company, deal, or ticket");
@@ -225,8 +232,8 @@ async function hubspot(path, init = {}) {
   return data;
 }
 
-async function pull(body) {
-  const { portalId, objectType, objectId } = identity(body);
+async function pull(body, accountId) {
+  const { portalId, objectType, objectId } = identity(body, accountId);
   const properties = [
     ...STANDARD_PROPERTIES[objectType],
     ...SAGEPAS_PROPERTIES_BY_OBJECT[objectType],
@@ -244,8 +251,8 @@ async function pull(body) {
   };
 }
 
-async function writeProperties(body, submitted) {
-  const { portalId, objectType, objectId } = identity(body);
+async function writeProperties(body, submitted, accountId) {
+  const { portalId, objectType, objectId } = identity(body, accountId);
   if (!submitted || typeof submitted !== "object" || Array.isArray(submitted)) {
     throw new Error("properties must be an object");
   }
@@ -274,16 +281,16 @@ async function writeProperties(body, submitted) {
   };
 }
 
-async function push(body) {
-  return writeProperties(body, body.properties);
+async function push(body, accountId) {
+  return writeProperties(body, body.properties, accountId);
 }
 
 // Unlike push/upsert (which sync the fixed sagepas_* property set), create
 // accepts whatever standard + custom properties the caller supplies -- it's
 // a general "make a new CRM object" primitive, not scoped to SagePAS's own
 // properties. Trust boundary is the shared secret, same as every other op.
-async function create(body) {
-  const { objectType } = identityForCreate(body);
+async function create(body, accountId) {
+  const { objectType } = identityForCreate(body, accountId);
   const properties = objectValue(body.properties);
   if (Object.keys(properties).length === 0) {
     throw new Error("properties must be a non-empty object");
@@ -390,14 +397,15 @@ async function associate(body) {
   return { fromType, fromId, toType, toId };
 }
 
-async function upsert(body) {
+async function upsert(body, accountId) {
   if (!body.event_id || typeof body.event_id !== "string") {
     throw new Error("event_id is required");
   }
-  const { objectType } = identity(body);
+  const { objectType } = identity(body, accountId);
   const result = await writeProperties(
     body,
     projectionProperties(objectType, body.payload),
+    accountId,
   );
   return { ...result, eventId: body.event_id };
 }
@@ -412,17 +420,33 @@ exports.main = async (context = {}) => {
     if (body.operation === "health") {
       return response(200, { status: "ok" });
     }
+    // accountId is HubSpot's own record of which portal is invoking this
+    // function right now -- resolved per-call, not configured, so it can't
+    // go stale the way a hardcoded portal ID could. Only the operations
+    // that write/read a specific CRM object need it (identity() checks
+    // caller-supplied portal_id against it); find_or_create_contact_by_email
+    // and associate operate on whatever portal owns this deployment's own
+    // access token and don't take a portal_id at all.
+    const accountId = Number(context.accountId);
+    if (
+      ["pull", "push", "upsert", "create"].includes(body.operation) &&
+      (!Number.isSafeInteger(accountId) || accountId <= 0)
+    ) {
+      return response(500, {
+        message: "unable to resolve the invoking HubSpot account",
+      });
+    }
     if (body.operation === "pull") {
-      return response(200, await pull(body));
+      return response(200, await pull(body, accountId));
     }
     if (body.operation === "push") {
-      return response(200, await push(body));
+      return response(200, await push(body, accountId));
     }
     if (body.operation === "upsert") {
-      return response(200, await upsert(body));
+      return response(200, await upsert(body, accountId));
     }
     if (body.operation === "create") {
-      return response(201, await create(body));
+      return response(201, await create(body, accountId));
     }
     if (body.operation === "associate") {
       return response(200, await associate(body));
