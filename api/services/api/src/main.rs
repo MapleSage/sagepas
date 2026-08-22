@@ -236,6 +236,10 @@ async fn main() -> anyhow::Result<()> {
             post(handlers::hubspot::retry_sync),
         )
         .route(
+            "/api/v1/admin/hubspot/backfill-links",
+            post(handlers::hubspot::backfill_hubspot_links),
+        )
+        .route(
             "/api/v1/policies/:id/versions",
             get(handlers::policies::get_policy_versions),
         )

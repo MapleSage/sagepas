@@ -1066,6 +1066,160 @@ fn context_response(
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct BackfillLinksResponse {
+    pub unlinked_before: usize,
+    pub linked: Vec<Uuid>,
+    pub skipped_ambiguous_email: Vec<AmbiguousEmailGroup>,
+    pub skipped_blank_email: Vec<Uuid>,
+    pub errors: Vec<BackfillLinkError>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AmbiguousEmailGroup {
+    pub email: String,
+    pub customer_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BackfillLinkError {
+    pub customer_id: Uuid,
+    pub error: String,
+}
+
+/// One unlinked customer row, as read for the backfill (work order item 8).
+struct UnlinkedCustomer {
+    id: Uuid,
+    email: String,
+    name: String,
+    phone: String,
+}
+
+/// Splits unlinked customers into: candidates safe to auto-link (exactly one
+/// customer for their normalized email), ambiguous groups (more than one
+/// customer shares an email -- the link schema allows only one customer_id
+/// per HubSpot object_id, so guessing which one wins would misattribute a
+/// real contact), and blank-email rows. Pure and unit-tested separately from
+/// the DB/bridge IO in `backfill_hubspot_links` below.
+fn partition_unlinked_customers(
+    rows: Vec<UnlinkedCustomer>,
+) -> (Vec<UnlinkedCustomer>, Vec<AmbiguousEmailGroup>, Vec<Uuid>) {
+    let mut blank_email = Vec::new();
+    let mut by_email: std::collections::HashMap<String, Vec<UnlinkedCustomer>> =
+        std::collections::HashMap::new();
+
+    for row in rows {
+        let normalized = row.email.trim().to_lowercase();
+        if normalized.is_empty() {
+            blank_email.push(row.id);
+            continue;
+        }
+        by_email.entry(normalized).or_default().push(row);
+    }
+
+    let mut candidates = Vec::new();
+    let mut ambiguous = Vec::new();
+    for (email, mut group) in by_email {
+        if group.len() > 1 {
+            ambiguous.push(AmbiguousEmailGroup {
+                email,
+                customer_ids: group.iter().map(|r| r.id).collect(),
+            });
+        } else {
+            candidates.push(group.remove(0));
+        }
+    }
+
+    (candidates, ambiguous, blank_email)
+}
+
+/// POST /api/v1/admin/hubspot/backfill-links -- Admin only, one-time
+/// reconciliation (work order item 8). Every PAS customer should get a
+/// hubspot_record_links row automatically as of item 3; this catches
+/// customers created before that fix landed (or by any future path that
+/// still manages to skip it). Never guesses: ambiguous or blank emails are
+/// reported, not linked.
+pub async fn backfill_hubspot_links(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+) -> Result<Json<BackfillLinksResponse>, (StatusCode, String)> {
+    require_roles(&user, &[PasRole::Admin])?;
+
+    let rows: Vec<UnlinkedCustomer> = sqlx::query_as::<_, (Uuid, String, String, String)>(
+        r#"
+        SELECT c.id, c.email, c.name, c.phone
+        FROM customers c
+        WHERE NOT EXISTS (
+            SELECT 1 FROM hubspot_record_links l WHERE l.customer_id = c.id
+        )
+        ORDER BY c.created_at
+        "#,
+    )
+    .fetch_all(&**state.db)
+    .await
+    .map_err(database_error)?
+    .into_iter()
+    .map(|(id, email, name, phone)| UnlinkedCustomer {
+        id,
+        email,
+        name,
+        phone,
+    })
+    .collect();
+
+    let unlinked_before = rows.len();
+    let (candidates, skipped_ambiguous_email, skipped_blank_email) =
+        partition_unlinked_customers(rows);
+
+    let mut linked = Vec::new();
+    let mut errors = Vec::new();
+
+    for candidate in candidates {
+        let mut tx = match state.db.begin().await {
+            Ok(tx) => tx,
+            Err(e) => {
+                errors.push(BackfillLinkError {
+                    customer_id: candidate.id,
+                    error: e.to_string(),
+                });
+                continue;
+            }
+        };
+
+        let link_result = crate::hubspot_bridge::ensure_link(
+            &mut tx,
+            &state,
+            candidate.id,
+            &candidate.email,
+            &candidate.name,
+            &candidate.phone,
+        )
+        .await;
+
+        match link_result {
+            Ok(_) => match tx.commit().await {
+                Ok(_) => linked.push(candidate.id),
+                Err(e) => errors.push(BackfillLinkError {
+                    customer_id: candidate.id,
+                    error: e.to_string(),
+                }),
+            },
+            Err((_, message)) => errors.push(BackfillLinkError {
+                customer_id: candidate.id,
+                error: message,
+            }),
+        }
+    }
+
+    Ok(Json(BackfillLinksResponse {
+        unlinked_before,
+        linked,
+        skipped_ambiguous_email,
+        skipped_blank_email,
+        errors,
+    }))
+}
+
 fn link_not_found() -> (StatusCode, String) {
     (
         StatusCode::NOT_FOUND,
@@ -1093,6 +1247,57 @@ fn database_error(err: sqlx::Error) -> (StatusCode, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn unlinked(id: Uuid, email: &str) -> UnlinkedCustomer {
+        UnlinkedCustomer {
+            id,
+            email: email.to_string(),
+            name: "Test Customer".to_string(),
+            phone: "+15550000000".to_string(),
+        }
+    }
+
+    #[test]
+    fn unique_emails_become_link_candidates() {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let (candidates, ambiguous, blank) = partition_unlinked_customers(vec![
+            unlinked(a, "Alice@Example.com"),
+            unlinked(b, "bob@example.com"),
+        ]);
+        assert_eq!(candidates.len(), 2);
+        assert!(ambiguous.is_empty());
+        assert!(blank.is_empty());
+    }
+
+    #[test]
+    fn duplicate_normalized_email_is_reported_not_guessed() {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let (candidates, ambiguous, blank) = partition_unlinked_customers(vec![
+            unlinked(a, "Same@Example.com"),
+            unlinked(b, " same@example.com "),
+        ]);
+        assert!(candidates.is_empty());
+        assert!(blank.is_empty());
+        assert_eq!(ambiguous.len(), 1);
+        assert_eq!(ambiguous[0].email, "same@example.com");
+        let mut ids = ambiguous[0].customer_ids.clone();
+        ids.sort();
+        let mut expected = vec![a, b];
+        expected.sort();
+        assert_eq!(ids, expected);
+    }
+
+    #[test]
+    fn blank_or_whitespace_only_email_is_skipped_not_guessed() {
+        let a = Uuid::new_v4();
+        let (candidates, ambiguous, blank) =
+            partition_unlinked_customers(vec![unlinked(a, "   ")]);
+        assert!(candidates.is_empty());
+        assert!(ambiguous.is_empty());
+        assert_eq!(blank, vec![a]);
+    }
 
     #[test]
     fn accepts_and_normalizes_valid_identity() {
