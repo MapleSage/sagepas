@@ -124,6 +124,9 @@ export const pasApi = {
   reinstate: (body:any) => request('/pas/reinstate', { method:'POST', body:JSON.stringify(body) }),
   agents: () => request('/agents'),
   createAgent: (body:any) => request('/agents', { method:'POST', body:JSON.stringify(body) }),
+  connectChat: (body:any) => request('/connect/chat', { method:'POST', body:JSON.stringify(body) }),
+  connectMemory: () => request('/connect/memory'),
+  connectHistory: (sessionId?:string) => request(`/connect/history${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ''}`),
   document: async (id:string) => {
     const token = await getBearerToken()
     const r=await fetch(`/api/v1/policies/${encodeURIComponent(id)}/document`,{headers:token?{Authorization:`Bearer ${token}`}:{}})

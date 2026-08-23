@@ -18,6 +18,7 @@ import QuotesPage from './components/quotes/QuotesPage'
 import PoliciesPage from './components/policies/PoliciesPage'
 import DealersPage from './components/dealers/DealersPage'
 import ReportsPage from './components/reports/ReportsPage'
+import { FloatingChat } from './components/FloatingChat'
 import { pasApi } from './api/client'
 import { D } from './theme'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
@@ -478,6 +479,8 @@ function AppShell() {
           </Routes>
         </main>
       </div>
+
+      <FloatingChat activeTab={activeId} />
 
     </div>
   )

@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod auth;
 pub mod customers;
+pub mod connect;
 pub mod eventing;
 pub mod fnol;
 pub mod hubspot;

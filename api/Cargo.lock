@@ -66,6 +66,7 @@ dependencies = [
  "azure_identity",
  "chrono",
  "composite-event-bus",
+ "conversation-memory",
  "doc-pipeline",
  "documents",
  "domain",
@@ -632,6 +633,21 @@ name = "const_fn"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413d67b29ef1021b4d60f4aa1e925ca031751e213832b4b1d588fae623c05c60"
+
+[[package]]
+name = "conversation-memory"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "infra",
+ "regex",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 1.0.69",
+ "tokio",
+ "uuid",
+]
 
 [[package]]
 name = "core-foundation"

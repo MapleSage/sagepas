@@ -212,6 +212,7 @@ async fn main() -> anyhow::Result<()> {
         fnol_blob,
         uw_blob,
         search,
+        conversation: conversation_memory::ConversationStore::new(db.clone()),
     };
 
     tokio::spawn(handlers::hubspot::run_outbox_dispatcher(app_state.clone()));
@@ -260,6 +261,9 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/v1/policies", get(handlers::policies::list_policies))
         .route("/api/v1/policies/:id", get(handlers::policies::get_policy))
+        .route("/api/v1/connect/chat", post(handlers::connect::chat))
+        .route("/api/v1/connect/memory", get(handlers::connect::memory))
+        .route("/api/v1/connect/history", get(handlers::connect::history))
         .route("/api/v1/fnol/submit", post(handlers::fnol::submit))
         .route("/api/v1/fnol/:id/trace", get(handlers::fnol::trace))
         .route("/api/v1/uw/upload", post(handlers::uw::upload))

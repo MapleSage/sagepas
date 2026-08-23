@@ -67,6 +67,9 @@ pub struct AppState {
     /// Azure AI Search -- KB-grounded scoring for FNOL/UW (`doc-pipeline`'s
     /// `kb_scoring` module) and PAS pricing factors both read this.
     pub search: Arc<SearchClient>,
+    /// GIA's chat history + fact memory (`handlers/connect.rs`). sagepas
+    /// had no equivalent of this at all before -- ported from sagesure-us.
+    pub conversation: conversation_memory::ConversationStore,
 }
 
 impl HasPolicyLock for AppState {
