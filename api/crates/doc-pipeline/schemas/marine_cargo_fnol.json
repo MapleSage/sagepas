@@ -1,0 +1,821 @@
+{
+  "$defs": {
+    "Address": {
+      "description": "A class representing an address.\n\nAttributes:\n    street: Street address\n    city: City\n    state: State\n    postal_code: Postal code\n    country: Country",
+      "properties": {
+        "street": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Street address",
+          "title": "Street"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "City",
+          "title": "City"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "State or province",
+          "title": "State"
+        },
+        "postal_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Postal code",
+          "title": "Postal Code"
+        },
+        "country": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Country",
+          "title": "Country"
+        }
+      },
+      "required": [
+        "street",
+        "city",
+        "state",
+        "postal_code",
+        "country"
+      ],
+      "title": "Address",
+      "type": "object"
+    },
+    "Declaration": {
+      "description": "Declaration and signature section.\n\nAttributes:\n    declaration_text: Declaration text\n    claimant_signature: Signature of the claimant\n    date_signed: Date when signed\n    title_position: Title or position of signatory",
+      "properties": {
+        "declaration_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Declaration text",
+          "title": "Declaration Text"
+        },
+        "claimant_signature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Signature"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Signature of the claimant"
+        },
+        "date_signed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date when signed, e.g. 2023-01-01",
+          "title": "Date Signed"
+        },
+        "title_position": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Title or position of signatory",
+          "title": "Title Position"
+        }
+      },
+      "required": [
+        "declaration_text",
+        "claimant_signature",
+        "date_signed",
+        "title_position"
+      ],
+      "title": "Declaration",
+      "type": "object"
+    },
+    "InsuredParty": {
+      "description": "Information about the insured party.\n\nAttributes:\n    company_name: Name of the insured company\n    contact_person: Contact person name\n    telephone: Telephone number\n    email: Email address\n    address: Mailing address",
+      "properties": {
+        "company_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the insured company",
+          "title": "Company Name"
+        },
+        "contact_person": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Contact person name",
+          "title": "Contact Person"
+        },
+        "telephone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Telephone number",
+          "title": "Telephone"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Email address",
+          "title": "Email"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Address"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Mailing address"
+        }
+      },
+      "required": [
+        "company_name",
+        "contact_person",
+        "telephone",
+        "email",
+        "address"
+      ],
+      "title": "InsuredParty",
+      "type": "object"
+    },
+    "LossDetails": {
+      "description": "Details about the loss or damage.\n\nAttributes:\n    fnol_reference: FNOL reference number\n    date_of_loss: Date when loss occurred\n    time_of_loss: Time when loss occurred\n    location_of_loss: Location where loss occurred\n    cause_of_loss: Cause of loss (e.g., water damage, theft, collision)\n    nature_of_damage: Nature of damage or loss\n    extent_of_damage: Extent of damage (e.g., total loss, partial loss)\n    estimated_loss_amount: Estimated loss amount\n    estimated_loss_currency: Currency of estimated loss\n    salvage_value: Salvage value if applicable\n    salvage_value_currency: Currency of salvage value\n    survey_required: Whether survey is required\n    surveyor_name: Name of surveyor if appointed\n    police_report_filed: Whether police report was filed\n    police_report_number: Police report number if applicable",
+      "properties": {
+        "fnol_reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "FNOL reference number",
+          "title": "Fnol Reference"
+        },
+        "date_of_loss": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date when loss occurred, e.g. 2023-01-01",
+          "title": "Date Of Loss"
+        },
+        "time_of_loss": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Time when loss occurred, e.g. 14:30",
+          "title": "Time Of Loss"
+        },
+        "location_of_loss": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Location where loss occurred",
+          "title": "Location Of Loss"
+        },
+        "cause_of_loss": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Cause of loss (e.g., water damage, theft, collision, fire, storm)",
+          "title": "Cause Of Loss"
+        },
+        "nature_of_damage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Nature of damage or loss",
+          "title": "Nature Of Damage"
+        },
+        "extent_of_damage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Extent of damage (e.g., total loss, partial loss, complete destruction)",
+          "title": "Extent Of Damage"
+        },
+        "estimated_loss_amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Estimated loss amount",
+          "title": "Estimated Loss Amount"
+        },
+        "estimated_loss_currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Currency of estimated loss, e.g. USD",
+          "title": "Estimated Loss Currency"
+        },
+        "salvage_value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Salvage value if applicable",
+          "title": "Salvage Value"
+        },
+        "salvage_value_currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Currency of salvage value, e.g. USD",
+          "title": "Salvage Value Currency"
+        },
+        "survey_required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whether survey is required",
+          "title": "Survey Required"
+        },
+        "surveyor_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of surveyor if appointed",
+          "title": "Surveyor Name"
+        },
+        "police_report_filed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whether police report was filed",
+          "title": "Police Report Filed"
+        },
+        "police_report_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Police report number if applicable",
+          "title": "Police Report Number"
+        }
+      },
+      "required": [
+        "fnol_reference",
+        "date_of_loss",
+        "time_of_loss",
+        "location_of_loss",
+        "cause_of_loss",
+        "nature_of_damage",
+        "extent_of_damage",
+        "estimated_loss_amount",
+        "estimated_loss_currency",
+        "salvage_value",
+        "salvage_value_currency",
+        "survey_required",
+        "surveyor_name",
+        "police_report_filed",
+        "police_report_number"
+      ],
+      "title": "LossDetails",
+      "type": "object"
+    },
+    "PolicyInfo": {
+      "description": "Marine cargo policy information.\n\nAttributes:\n    policy_number: Policy number\n    certificate_number: Certificate number if applicable\n    policy_effective_date: Policy effective date\n    policy_expiration_date: Policy expiration date\n    coverage_type: Type of coverage (e.g., All Risk, Named Perils)\n    deductible: Deductible amount\n    deductible_currency: Currency of deductible",
+      "properties": {
+        "policy_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Policy number",
+          "title": "Policy Number"
+        },
+        "certificate_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Certificate number if applicable",
+          "title": "Certificate Number"
+        },
+        "policy_effective_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Policy effective date, e.g. 2023-01-01",
+          "title": "Policy Effective Date"
+        },
+        "policy_expiration_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Policy expiration date, e.g. 2024-01-01",
+          "title": "Policy Expiration Date"
+        },
+        "coverage_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Type of coverage (e.g., All Risk, Named Perils, Institute Cargo Clauses)",
+          "title": "Coverage Type"
+        },
+        "deductible": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Deductible amount",
+          "title": "Deductible"
+        },
+        "deductible_currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Currency of deductible, e.g. USD",
+          "title": "Deductible Currency"
+        }
+      },
+      "required": [
+        "policy_number",
+        "certificate_number",
+        "policy_effective_date",
+        "policy_expiration_date",
+        "coverage_type",
+        "deductible",
+        "deductible_currency"
+      ],
+      "title": "PolicyInfo",
+      "type": "object"
+    },
+    "ShipmentDetails": {
+      "description": "Details about the cargo shipment.\n\nAttributes:\n    vessel_name: Name of vessel or flight number\n    voyage_number: Voyage or trip number\n    bill_of_lading: Bill of lading number\n    container_numbers: Container numbers (comma-separated)\n    port_of_loading: Port of loading\n    port_of_discharge: Port of discharge\n    final_destination: Final destination\n    date_of_shipment: Date of shipment\n    commodity_description: Description of goods\n    declared_value: Declared value of cargo\n    declared_value_currency: Currency of declared value\n    packaging_type: Type of packaging (e.g., container, pallet, crate)\n    number_of_packages: Number of packages\n    weight: Total weight\n    weight_unit: Unit of weight (kg, lbs, tons)",
+      "properties": {
+        "vessel_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of vessel, aircraft, or vehicle",
+          "title": "Vessel Name"
+        },
+        "voyage_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Voyage or trip number",
+          "title": "Voyage Number"
+        },
+        "bill_of_lading": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Bill of lading number",
+          "title": "Bill Of Lading"
+        },
+        "container_numbers": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Container numbers (comma-separated)",
+          "title": "Container Numbers"
+        },
+        "port_of_loading": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Port of loading",
+          "title": "Port Of Loading"
+        },
+        "port_of_discharge": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Port of discharge",
+          "title": "Port Of Discharge"
+        },
+        "final_destination": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Final destination",
+          "title": "Final Destination"
+        },
+        "date_of_shipment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date of shipment, e.g. 2023-01-01",
+          "title": "Date Of Shipment"
+        },
+        "commodity_description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Description of goods",
+          "title": "Commodity Description"
+        },
+        "declared_value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Declared value of cargo",
+          "title": "Declared Value"
+        },
+        "declared_value_currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Currency of declared value, e.g. USD",
+          "title": "Declared Value Currency"
+        },
+        "packaging_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Type of packaging (e.g., container, pallet, crate, bulk)",
+          "title": "Packaging Type"
+        },
+        "number_of_packages": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Number of packages",
+          "title": "Number Of Packages"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Total weight",
+          "title": "Weight"
+        },
+        "weight_unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Unit of weight (kg, lbs, tons, MT)",
+          "title": "Weight Unit"
+        }
+      },
+      "required": [
+        "vessel_name",
+        "voyage_number",
+        "bill_of_lading",
+        "container_numbers",
+        "port_of_loading",
+        "port_of_discharge",
+        "final_destination",
+        "date_of_shipment",
+        "commodity_description",
+        "declared_value",
+        "declared_value_currency",
+        "packaging_type",
+        "number_of_packages",
+        "weight",
+        "weight_unit"
+      ],
+      "title": "ShipmentDetails",
+      "type": "object"
+    },
+    "Signature": {
+      "description": "Signature information.\n\nAttributes:\n    signatory: Name of the person who signed\n    is_signed: Indicates if the document is signed",
+      "properties": {
+        "signatory": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the person who signed",
+          "title": "Signatory"
+        },
+        "is_signed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Indicates if the document is signed. Check for signature in image files.",
+          "title": "Is Signed"
+        }
+      },
+      "required": [
+        "signatory",
+        "is_signed"
+      ],
+      "title": "Signature",
+      "type": "object"
+    }
+  },
+  "description": "A class representing a Marine Cargo First Notice of Loss form.\n\nAttributes:\n    insured_party: Information about the insured party\n    policy_info: Marine cargo policy information\n    shipment_details: Details about the cargo shipment\n    loss_details: Details about the loss or damage\n    declaration: Declaration and signature section",
+  "properties": {
+    "insured_party": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InsuredParty"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Information about the insured party"
+    },
+    "policy_info": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PolicyInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Marine cargo policy information"
+    },
+    "shipment_details": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShipmentDetails"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Details about the cargo shipment"
+    },
+    "loss_details": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LossDetails"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Details about the loss or damage"
+    },
+    "declaration": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Declaration"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Declaration and signature section"
+    }
+  },
+  "required": [
+    "insured_party",
+    "policy_info",
+    "shipment_details",
+    "loss_details",
+    "declaration"
+  ],
+  "title": "MarineCargoFNOL",
+  "type": "object"
+}

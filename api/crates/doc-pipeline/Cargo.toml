@@ -1,0 +1,20 @@
+[package]
+name    = "doc-pipeline"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+infra       = { path = "../infra" }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+reqwest     = { workspace = true }
+chrono      = { workspace = true }
+base64      = { workspace = true }
+bytes       = { workspace = true }
+sqlx        = { workspace = true }
+uuid        = { workspace = true }
+thiserror   = { workspace = true }
+tracing     = { workspace = true }
+tokio       = { workspace = true }
+azure_identity = "0.20"
+azure_core     = { workspace = true }

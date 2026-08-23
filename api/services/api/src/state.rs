@@ -4,7 +4,7 @@ use documents::DocumentGenerator;
 use event_bus::EventBus;
 use event_projector::EventProjector;
 use event_store::EventStore;
-use infra::{config::AppConfig, db::DbPool};
+use infra::{config::AppConfig, db::DbPool, search::SearchClient};
 use oos_orchestrator::OosOrchestrator;
 
 use policy_ledger::{BiTemporalPolicyStore, PolicyLedger};
@@ -52,6 +52,21 @@ pub struct AppState {
     /// work order item 4 made claims case-reserve posting its first caller.
     /// Cheap to clone: wraps a single `Arc<DbPool>` internally.
     pub subledger: premium_ledger::PremiumSubledger,
+    /// Content Understanding client for the shared FNOL/UW pipeline
+    /// (`doc-pipeline`). `None` when `CONTENT_UNDERSTANDING_ENDPOINT` is
+    /// unconfigured -- the pipeline degrades to a GPT-only path rather than
+    /// failing closed.
+    pub cu_client: Option<Arc<doc_pipeline::content_understanding::ContentUnderstandingClient>>,
+    pub openai_client: Arc<infra::openai::OpenAIClient>,
+    /// Blob containers are separate per FNOL consolidation decision Phase 3
+    /// (`fnol-documents` / `uw-documents`, already named in migrations
+    /// 009-011) -- two clients, not one, since `BlobClient` is
+    /// container-scoped at construction.
+    pub fnol_blob: Arc<infra::blob::BlobClient>,
+    pub uw_blob: Arc<infra::blob::BlobClient>,
+    /// Azure AI Search -- KB-grounded scoring for FNOL/UW (`doc-pipeline`'s
+    /// `kb_scoring` module) and PAS pricing factors both read this.
+    pub search: Arc<SearchClient>,
 }
 
 impl HasPolicyLock for AppState {

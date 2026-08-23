@@ -66,6 +66,7 @@ dependencies = [
  "azure_identity",
  "chrono",
  "composite-event-bus",
+ "doc-pipeline",
  "documents",
  "domain",
  "event-bus",
@@ -798,6 +799,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "doc-pipeline"
+version = "0.1.0"
+dependencies = [
+ "azure_core",
+ "azure_identity",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "infra",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

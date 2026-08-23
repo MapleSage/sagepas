@@ -159,6 +159,28 @@ async fn main() -> anyhow::Result<()> {
         .user_agent("SageSure-HubSpot-Bridge/1.0")
         .build()?;
 
+    let cu_client = if config.content_understanding_endpoint.trim().is_empty() {
+        warn!("CONTENT_UNDERSTANDING_ENDPOINT not configured; FNOL/UW pipeline falls back to GPT-only extraction");
+        None
+    } else {
+        Some(Arc::new(doc_pipeline::content_understanding::ContentUnderstandingClient::new(
+            &config.content_understanding_endpoint,
+        )))
+    };
+    let openai_client = Arc::new(infra::openai::OpenAIClient::new(
+        &config.azure_openai_endpoint,
+        &config.azure_openai_key,
+        &config.azure_openai_deployment,
+    ));
+    let fnol_blob = Arc::new(BlobClient::from_managed_identity(
+        &config.storage_account_name,
+        "fnol-documents",
+    )?);
+    let uw_blob = Arc::new(BlobClient::from_managed_identity(
+        &config.storage_account_name,
+        "uw-documents",
+    )?);
+
     let app_state = AppState {
         db: db.clone(),
         config: config.clone(),
@@ -185,6 +207,11 @@ async fn main() -> anyhow::Result<()> {
             handlers::prospect::RATE_LIMIT_WINDOW,
         )),
         subledger,
+        cu_client,
+        openai_client,
+        fnol_blob,
+        uw_blob,
+        search,
     };
 
     tokio::spawn(handlers::hubspot::run_outbox_dispatcher(app_state.clone()));
@@ -233,6 +260,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/v1/policies", get(handlers::policies::list_policies))
         .route("/api/v1/policies/:id", get(handlers::policies::get_policy))
+        .route("/api/v1/fnol/submit", post(handlers::fnol::submit))
+        .route("/api/v1/fnol/:id/trace", get(handlers::fnol::trace))
+        .route("/api/v1/uw/upload", post(handlers::uw::upload))
+        .route("/api/v1/uw/:id/trace", get(handlers::uw::trace))
         .route(
             "/api/v1/hubspot/context/:portal_id/:object_type/:object_id",
             get(handlers::hubspot::get_context).put(handlers::hubspot::upsert_context),

@@ -24,6 +24,7 @@ event-store     = { path = "../../crates/event-store" }
 event-router    = { path = "../../crates/event-router" }
 composite-event-bus = { path = "../../crates/composite-event-bus" }
 event-projector = { path = "../../crates/event-projector" }
+doc-pipeline    = { path = "../../crates/doc-pipeline" }
 
 anyhow          = { workspace = true }
 async-trait     = "0.1"

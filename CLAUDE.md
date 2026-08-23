@@ -1,5 +1,79 @@
 # CLAUDE.md
 
+## 🔴 ACTIVE CONSOLIDATION DECISION (2026-08-23) — read this before touching FNOL, UW, or this repo's pipeline
+
+**This is a confirmed architecture decision, not open for relitigation.** Written here
+specifically so it survives a session/model change — if you are a fresh session reading
+this, treat the decision below as settled and pick up execution from the plan file, do
+not re-derive or re-argue it. Mirrored in `sagesure-us/CLAUDE.md` — keep both in sync.
+
+**Systems in scope, named precisely:** `SagePAS` standalone — this repo, Rust/Axum,
+live at `pas.sagesure.io`, own Postgres DB `sagepas` on
+`pg-openclaw-cid.postgres.database.azure.com` — is the target/canonical system this
+decision converges onto. `app.sagesure.io` (separate repo `sagesure-us`, AKS,
+`sagesure-us-insurance-api`, own Postgres DB `insurance`) and the two standalone
+**FNOL & UW ACA deployments** (`fnol.sagesure.io` on `ca-azdockmgmt5ppjq-*` in
+`sageinsure-rg`; `uw.sagesure.io`, likely `uw-workbench-api`/`uw-workbench-worker`,
+DNS binding unconfirmed as of this writing) are the systems being folded in.
+
+**The decision, verbatim as given:**
+
+> Consolidation decision: FNOL and UW converge onto SagePAS. Move the Rust crates and
+> API surface to write to the sagepas DB — the `fnol_submissions`, `uw_jobs` and
+> `fnol_events` tables already scaffolded there are the landing zone.
+>
+> One shared document pipeline, two domain configurations. Ingest, OCR, extraction,
+> validation, confidence scoring and human-in-loop are one engine. FNOL and UW differ
+> only in field sets, rules, appetite and output object — claim/ticket versus
+> submission/deal. Do not fork the pipeline; do not merge the surfaces. The two HubSpot
+> cards stay two cards.
+>
+> Retain FNOL's ingestion breadth (images, photos, scans, not PDF-only) and UW's
+> processing speed. That combination is the point of the merge.
+>
+> Scope before building: where do the actual documents live after this? FNOL currently
+> uses Cosmos. Postgres holds metadata well and blobs badly — so decide explicitly
+> whether documents move to blob storage with sagepas holding references, and say so
+> rather than defaulting. **[Resolved: yes, blob storage with references — this repo's
+> schema (migrations 009-011) already has `blob_container`/`blob_name` columns on
+> `fnol_submissions`/`uw_jobs`, this was decided before this note was written.]**
+>
+> Also settle in the same scope what happens to the two now-redundant ACA deployments,
+> so the saving is actually realized rather than left running. Two additions to the
+> consolidation scope, both previously requested and missed.
+>
+> 1. FNOL and UW front-end pages render inside SagePAS. SagePAS becomes the single
+>    B2B2C door using the existing profile-based access. B2C profile: quote, buy, file
+>    a claim, view claim status. B2B/staff: full agent and policy administration.
+>    Underwriting: demo profile only, not a customer-facing surface. The goal is that a
+>    complete walkthrough — anonymous quote through purchase through claim — runs at
+>    one URL with no subdomain hops.
+> 2. Extraction and analysis: standalone UW is the reference implementation, not
+>    `app.sagesure.io`. This is explicit and not negotiable in the merge. Requirements:
+>    - Every pipeline stage individually visible and inspectable — ingestion, OCR,
+>      extraction, validation, scoring, review. Not a black box between document-in
+>      and score-out.
+>    - Analysis grounded in the knowledge base with the detail retained, not summarized
+>      away. Each conclusion carries the KB material it rests on.
+>    - Where `app.sagesure.io`'s current chain is less detailed than standalone UW's,
+>      UW's wins. Do not merge toward the more convenient implementation.
+>
+> Acceptance for (2): open any completed assessment and trace every stated conclusion
+> back through its stage to the source document region and the KB passage that grounds
+> it. If any step can't show its working, that step isn't done.
+
+**Full implementation plan:**
+`/Users/parvind/.claude/plans/abstract-yawning-pinwheel.md` — phased, with concrete
+file/module targets and verified current-state findings on both the sagesure-us native
+path and the standalone UW reference implementation. Approved by Parvind 2026-08-23.
+Execution was on Phase 1 (new `api/crates/doc-pipeline` crate in this repo) as of this
+note — check the plan file and this repo's git log for actual progress before assuming
+where it's at.
+
+---
+
+# CLAUDE.md
+
 This file provides guidance to Claude Code (claude.ai/code) when working on HubSpot components
 
 IMPORTANT: IF THE 'HubSpotDev' MCP SERVER IS INSTALLED USE THE TOOLS BEFORE TRYING TO MANUALLY USE CLI COMMANDS OR BEFORE TRYING TO DO ANYTHING WITH HUBSPOT ASSETS

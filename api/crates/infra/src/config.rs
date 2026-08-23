@@ -41,6 +41,31 @@ pub struct AppConfig {
     /// It defaults to false, leaving production authentication Entra-only.
     #[serde(default)]
     pub dev_local_auth_enabled: bool,
+
+    /// Azure Content Understanding -- OCR/layout extraction for the shared
+    /// FNOL/UW document pipeline. Empty means unconfigured; callers fall
+    /// back to GPT vision only (see doc-pipeline's ingest stage).
+    #[serde(default)]
+    pub content_understanding_endpoint: String,
+    #[serde(default = "default_cu_timeout_secs")]
+    pub content_understanding_timeout_secs: u64,
+
+    /// Azure OpenAI -- schema-constrained structured extraction from CU's
+    /// markdown/fields output, and KB-grounded scoring.
+    #[serde(default)]
+    pub azure_openai_endpoint: String,
+    #[serde(default)]
+    pub azure_openai_key: String,
+    #[serde(default = "default_openai_deployment")]
+    pub azure_openai_deployment: String,
+}
+
+fn default_cu_timeout_secs() -> u64 {
+    120
+}
+
+fn default_openai_deployment() -> String {
+    "gpt-5.6-luna".into()
 }
 
 fn default_port() -> u16 {

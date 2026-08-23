@@ -1,0 +1,690 @@
+{
+  "$defs": {
+    "Address": {
+      "properties": {
+        "street": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Street address",
+          "title": "Street"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "City",
+          "title": "City"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "State or province",
+          "title": "State"
+        },
+        "postal_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Postal code",
+          "title": "Postal Code"
+        },
+        "country": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Country",
+          "title": "Country"
+        }
+      },
+      "required": [
+        "street",
+        "city",
+        "state",
+        "postal_code",
+        "country"
+      ],
+      "title": "Address",
+      "type": "object"
+    },
+    "BeneficiaryInfo": {
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Full name of the beneficiary",
+          "title": "Name"
+        },
+        "relationship": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Relationship to the insured (Spouse, Child, Parent, etc.)",
+          "title": "Relationship"
+        },
+        "date_of_birth": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date of birth of the beneficiary",
+          "title": "Date Of Birth"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Phone number of the beneficiary",
+          "title": "Phone"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Email address of the beneficiary",
+          "title": "Email"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Address"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Address of the beneficiary"
+        },
+        "percentage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Percentage of death benefit allocated to this beneficiary",
+          "title": "Percentage"
+        },
+        "is_primary": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "True if primary beneficiary, False if contingent",
+          "title": "Is Primary"
+        }
+      },
+      "required": [
+        "name",
+        "relationship",
+        "date_of_birth",
+        "phone",
+        "email",
+        "address",
+        "percentage",
+        "is_primary"
+      ],
+      "title": "BeneficiaryInfo",
+      "type": "object"
+    },
+    "ClaimDetails": {
+      "properties": {
+        "claim_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Type of claim: Death Benefit, Disability, Accelerated Benefit",
+          "title": "Claim Type"
+        },
+        "date_claim_filed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date the claim was filed, e.g. 2026-04-30",
+          "title": "Date Claim Filed"
+        },
+        "supporting_documents": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "List of supporting documents provided: Death Certificate, Policy Document, ID, Medical Records",
+          "title": "Supporting Documents"
+        },
+        "claim_amount_requested": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Amount claimed by the beneficiary",
+          "title": "Claim Amount Requested"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Any additional notes or remarks on the claim",
+          "title": "Notes"
+        }
+      },
+      "required": [
+        "claim_type",
+        "date_claim_filed",
+        "supporting_documents",
+        "claim_amount_requested",
+        "notes"
+      ],
+      "title": "ClaimDetails",
+      "type": "object"
+    },
+    "DeceasedInfo": {
+      "properties": {
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First name of the deceased insured",
+          "title": "First Name"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Last name of the deceased insured",
+          "title": "Last Name"
+        },
+        "date_of_birth": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date of birth of the deceased",
+          "title": "Date Of Birth"
+        },
+        "date_of_death": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date of death, e.g. 2026-01-15",
+          "title": "Date Of Death"
+        },
+        "cause_of_death": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Cause of death as stated on death certificate",
+          "title": "Cause Of Death"
+        },
+        "place_of_death": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "City/state where death occurred",
+          "title": "Place Of Death"
+        }
+      },
+      "required": [
+        "first_name",
+        "last_name",
+        "date_of_birth",
+        "date_of_death",
+        "cause_of_death",
+        "place_of_death"
+      ],
+      "title": "DeceasedInfo",
+      "type": "object"
+    },
+    "PolicyInfo": {
+      "properties": {
+        "policy_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Life insurance policy number",
+          "title": "Policy Number"
+        },
+        "policy_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Type of policy: Term, Whole Life, Universal Life, Variable",
+          "title": "Policy Type"
+        },
+        "face_amount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Face/death benefit amount of the policy",
+          "title": "Face Amount"
+        },
+        "issue_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date the policy was issued, e.g. 2020-01-01",
+          "title": "Issue Date"
+        },
+        "maturity_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date the policy matures or expires",
+          "title": "Maturity Date"
+        },
+        "premium_amount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Regular premium payment amount",
+          "title": "Premium Amount"
+        },
+        "premium_frequency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Premium payment frequency: Monthly/Quarterly/Annual",
+          "title": "Premium Frequency"
+        },
+        "insurer_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the insurance company",
+          "title": "Insurer Name"
+        }
+      },
+      "required": [
+        "policy_number",
+        "policy_type",
+        "face_amount",
+        "issue_date",
+        "maturity_date",
+        "premium_amount",
+        "premium_frequency",
+        "insurer_name"
+      ],
+      "title": "PolicyInfo",
+      "type": "object"
+    },
+    "PolicyholderInfo": {
+      "properties": {
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First name of the policyholder or insured",
+          "title": "First Name"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Last name of the policyholder or insured",
+          "title": "Last Name"
+        },
+        "date_of_birth": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date of birth, e.g. 1980-01-15",
+          "title": "Date Of Birth"
+        },
+        "gender": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Gender of the insured (Male/Female/Other)",
+          "title": "Gender"
+        },
+        "ssn_last_four": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Last four digits of Social Security Number",
+          "title": "Ssn Last Four"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Primary phone number",
+          "title": "Phone"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Email address",
+          "title": "Email"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Address"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Residential address of the policyholder"
+        }
+      },
+      "required": [
+        "first_name",
+        "last_name",
+        "date_of_birth",
+        "gender",
+        "ssn_last_four",
+        "phone",
+        "email",
+        "address"
+      ],
+      "title": "PolicyholderInfo",
+      "type": "object"
+    },
+    "Signature": {
+      "properties": {
+        "signatory": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the person who signed",
+          "title": "Signatory"
+        },
+        "is_signed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Indicates if the document is signed. Check for signature in image files.",
+          "title": "Is Signed"
+        }
+      },
+      "required": [
+        "signatory",
+        "is_signed"
+      ],
+      "title": "Signature",
+      "type": "object"
+    }
+  },
+  "description": "Life insurance claim or policy document.\nExtracts policyholder, deceased, beneficiary, policy, and claim details.",
+  "properties": {
+    "policyholder": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PolicyholderInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Information about the policyholder or insured person"
+    },
+    "deceased": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DeceasedInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Information about the deceased (for death benefit claims)"
+    },
+    "policy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PolicyInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Life insurance policy details"
+    },
+    "beneficiaries": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/BeneficiaryInfo"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "List of beneficiaries named in the policy",
+      "title": "Beneficiaries"
+    },
+    "claim": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ClaimDetails"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Details of the claim being filed"
+    },
+    "declaration": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Signature"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Signature/declaration section of the document"
+    }
+  },
+  "required": [
+    "policyholder",
+    "deceased",
+    "policy",
+    "beneficiaries",
+    "claim",
+    "declaration"
+  ],
+  "title": "LifeInsurance",
+  "type": "object"
+}

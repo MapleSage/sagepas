@@ -1,0 +1,693 @@
+{
+  "$defs": {
+    "Address": {
+      "properties": {
+        "street": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Street address",
+          "title": "Street"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "City",
+          "title": "City"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "State or province",
+          "title": "State"
+        },
+        "postal_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Postal code",
+          "title": "Postal Code"
+        },
+        "country": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Country",
+          "title": "Country"
+        }
+      },
+      "required": [
+        "street",
+        "city",
+        "state",
+        "postal_code",
+        "country"
+      ],
+      "title": "Address",
+      "type": "object"
+    },
+    "ClaimLineItem": {
+      "properties": {
+        "service_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date the medical service was provided, e.g. 2026-03-15",
+          "title": "Service Date"
+        },
+        "procedure_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "CPT or procedure code for the service",
+          "title": "Procedure Code"
+        },
+        "diagnosis_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "ICD-10 diagnosis code",
+          "title": "Diagnosis Code"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Description of the medical service or procedure",
+          "title": "Description"
+        },
+        "billed_amount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Amount billed by the provider",
+          "title": "Billed Amount"
+        },
+        "allowed_amount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Amount allowed by the insurance plan",
+          "title": "Allowed Amount"
+        },
+        "paid_amount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Amount paid by insurance",
+          "title": "Paid Amount"
+        },
+        "patient_responsibility": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Amount the patient owes (copay/deductible/coinsurance)",
+          "title": "Patient Responsibility"
+        }
+      },
+      "required": [
+        "service_date",
+        "procedure_code",
+        "diagnosis_code",
+        "description",
+        "billed_amount",
+        "allowed_amount",
+        "paid_amount",
+        "patient_responsibility"
+      ],
+      "title": "ClaimLineItem",
+      "type": "object"
+    },
+    "InsurancePlanInfo": {
+      "properties": {
+        "plan_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the health insurance plan",
+          "title": "Plan Name"
+        },
+        "plan_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Plan type: HMO, PPO, EPO, HDHP, etc.",
+          "title": "Plan Type"
+        },
+        "insurer_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the insurance company",
+          "title": "Insurer Name"
+        },
+        "policy_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Health insurance policy number",
+          "title": "Policy Number"
+        },
+        "effective_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date coverage became effective, e.g. 2026-01-01",
+          "title": "Effective Date"
+        },
+        "termination_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date coverage ends, if applicable",
+          "title": "Termination Date"
+        },
+        "deductible": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Annual deductible amount",
+          "title": "Deductible"
+        },
+        "out_of_pocket_max": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Annual out-of-pocket maximum",
+          "title": "Out Of Pocket Max"
+        },
+        "copay": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Copay amount per visit",
+          "title": "Copay"
+        }
+      },
+      "required": [
+        "plan_name",
+        "plan_type",
+        "insurer_name",
+        "policy_number",
+        "effective_date",
+        "termination_date",
+        "deductible",
+        "out_of_pocket_max",
+        "copay"
+      ],
+      "title": "InsurancePlanInfo",
+      "type": "object"
+    },
+    "PatientInfo": {
+      "properties": {
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First name of the patient",
+          "title": "First Name"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Last name of the patient",
+          "title": "Last Name"
+        },
+        "date_of_birth": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date of birth, e.g. 1985-06-20",
+          "title": "Date Of Birth"
+        },
+        "gender": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Gender of the patient",
+          "title": "Gender"
+        },
+        "member_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Health insurance member/subscriber ID",
+          "title": "Member Id"
+        },
+        "group_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Group or plan number on the insurance card",
+          "title": "Group Number"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Patient's phone number",
+          "title": "Phone"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Patient's email address",
+          "title": "Email"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Address"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Patient's residential address"
+        }
+      },
+      "required": [
+        "first_name",
+        "last_name",
+        "date_of_birth",
+        "gender",
+        "member_id",
+        "group_number",
+        "phone",
+        "email",
+        "address"
+      ],
+      "title": "PatientInfo",
+      "type": "object"
+    },
+    "ProviderInfo": {
+      "properties": {
+        "provider_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the treating physician or facility",
+          "title": "Provider Name"
+        },
+        "npi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "National Provider Identifier (NPI) number",
+          "title": "Npi"
+        },
+        "facility_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the hospital or clinic",
+          "title": "Facility Name"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Address"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Address of the provider or facility"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Provider's phone number",
+          "title": "Phone"
+        }
+      },
+      "required": [
+        "provider_name",
+        "npi",
+        "facility_name",
+        "address",
+        "phone"
+      ],
+      "title": "ProviderInfo",
+      "type": "object"
+    },
+    "Signature": {
+      "properties": {
+        "signatory": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the person who signed",
+          "title": "Signatory"
+        },
+        "is_signed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Indicates if the document is signed. Check for signature in image files.",
+          "title": "Is Signed"
+        }
+      },
+      "required": [
+        "signatory",
+        "is_signed"
+      ],
+      "title": "Signature",
+      "type": "object"
+    }
+  },
+  "description": "Health insurance claim, Explanation of Benefits (EOB), or insurance card document.\nExtracts patient, plan, provider, and claim line item details.",
+  "properties": {
+    "patient": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PatientInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Patient/member information"
+    },
+    "plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InsurancePlanInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Health insurance plan details"
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProviderInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Treating provider or facility information"
+    },
+    "claim_number": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Unique claim reference number assigned by the insurer",
+      "title": "Claim Number"
+    },
+    "claim_date": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Date the claim was submitted, e.g. 2026-04-01",
+      "title": "Claim Date"
+    },
+    "total_billed": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Total amount billed across all line items",
+      "title": "Total Billed"
+    },
+    "total_paid": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Total amount paid by insurance",
+      "title": "Total Paid"
+    },
+    "total_patient_responsibility": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Total amount owed by the patient",
+      "title": "Total Patient Responsibility"
+    },
+    "line_items": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/ClaimLineItem"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Individual service line items on the claim",
+      "title": "Line Items"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Additional notes, denial reasons, or remarks",
+      "title": "Notes"
+    },
+    "declaration": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Signature"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Signature/authorization section of the document"
+    }
+  },
+  "required": [
+    "patient",
+    "plan",
+    "provider",
+    "claim_number",
+    "claim_date",
+    "total_billed",
+    "total_paid",
+    "total_patient_responsibility",
+    "line_items",
+    "notes",
+    "declaration"
+  ],
+  "title": "HealthInsurance",
+  "type": "object"
+}

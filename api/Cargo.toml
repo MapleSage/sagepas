@@ -17,6 +17,7 @@ members = [
   "crates/event-router",
   "crates/composite-event-bus",
   "crates/rating",
+  "crates/doc-pipeline",
 ]
 resolver = "2"
 

@@ -1,0 +1,994 @@
+{
+  "$defs": {
+    "AccidentDetails": {
+      "description": "Details about the accident or loss event.",
+      "properties": {
+        "date_of_loss": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date when the accident occurred, e.g. 2023-06-15",
+          "title": "Date Of Loss"
+        },
+        "time_of_loss": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Time when the accident occurred, e.g. 14:30",
+          "title": "Time Of Loss"
+        },
+        "location_of_loss": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Location where the accident occurred",
+          "title": "Location Of Loss"
+        },
+        "cause_of_loss": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Cause of loss (e.g., Rear-end collision, Side-swipe, Hit and run, Theft, Hail, Flood, Fire)",
+          "title": "Cause Of Loss"
+        },
+        "description_of_incident": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Narrative description of how the accident occurred",
+          "title": "Description Of Incident"
+        },
+        "police_report_filed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whether a police report was filed",
+          "title": "Police Report Filed"
+        },
+        "police_report_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Police report number if applicable",
+          "title": "Police Report Number"
+        },
+        "police_department": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of police department that responded",
+          "title": "Police Department"
+        },
+        "injuries_reported": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whether any injuries were reported",
+          "title": "Injuries Reported"
+        },
+        "injury_description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Description of injuries if any",
+          "title": "Injury Description"
+        },
+        "number_of_vehicles_involved": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Total number of vehicles involved",
+          "title": "Number Of Vehicles Involved"
+        },
+        "weather_conditions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Weather conditions at time of loss (e.g., Clear, Rain, Snow, Fog)",
+          "title": "Weather Conditions"
+        },
+        "road_conditions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Road conditions at time of loss (e.g., Dry, Wet, Icy)",
+          "title": "Road Conditions"
+        }
+      },
+      "required": [
+        "date_of_loss",
+        "time_of_loss",
+        "location_of_loss",
+        "cause_of_loss",
+        "description_of_incident",
+        "police_report_filed",
+        "police_report_number",
+        "police_department",
+        "injuries_reported",
+        "injury_description",
+        "number_of_vehicles_involved",
+        "weather_conditions",
+        "road_conditions"
+      ],
+      "title": "AccidentDetails",
+      "type": "object"
+    },
+    "Address": {
+      "properties": {
+        "street": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Street address",
+          "title": "Street"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "City",
+          "title": "City"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "State or province",
+          "title": "State"
+        },
+        "postal_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Postal code",
+          "title": "Postal Code"
+        },
+        "country": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Country",
+          "title": "Country"
+        }
+      },
+      "required": [
+        "street",
+        "city",
+        "state",
+        "postal_code",
+        "country"
+      ],
+      "title": "Address",
+      "type": "object"
+    },
+    "DamageEstimate": {
+      "description": "Damage and repair cost estimate.",
+      "properties": {
+        "damaged_areas": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Areas of vehicle damaged (e.g., Front bumper, Driver door, Hood)",
+          "title": "Damaged Areas"
+        },
+        "estimated_repair_cost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Estimated repair cost",
+          "title": "Estimated Repair Cost"
+        },
+        "estimated_repair_cost_currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Currency of estimated repair cost, e.g. USD",
+          "title": "Estimated Repair Cost Currency"
+        },
+        "total_loss": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whether the vehicle is a total loss",
+          "title": "Total Loss"
+        },
+        "repair_shop_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of repair shop if already selected",
+          "title": "Repair Shop Name"
+        },
+        "repair_shop_address": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Address"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Address of repair shop"
+        },
+        "towing_required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whether towing was required",
+          "title": "Towing Required"
+        },
+        "rental_required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whether a rental vehicle is needed",
+          "title": "Rental Required"
+        }
+      },
+      "required": [
+        "damaged_areas",
+        "estimated_repair_cost",
+        "estimated_repair_cost_currency",
+        "total_loss",
+        "repair_shop_name",
+        "repair_shop_address",
+        "towing_required",
+        "rental_required"
+      ],
+      "title": "DamageEstimate",
+      "type": "object"
+    },
+    "Declaration": {
+      "description": "Declaration and signature section.",
+      "properties": {
+        "declaration_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Declaration text",
+          "title": "Declaration Text"
+        },
+        "claimant_signature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Signature"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Signature of the claimant"
+        },
+        "date_signed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date when signed, e.g. 2023-01-01",
+          "title": "Date Signed"
+        }
+      },
+      "required": [
+        "declaration_text",
+        "claimant_signature",
+        "date_signed"
+      ],
+      "title": "Declaration",
+      "type": "object"
+    },
+    "PolicyInfo": {
+      "description": "Auto insurance policy information.",
+      "properties": {
+        "policy_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Policy number",
+          "title": "Policy Number"
+        },
+        "claim_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Claim number if pre-assigned",
+          "title": "Claim Number"
+        },
+        "policy_effective_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Policy effective date, e.g. 2023-01-01",
+          "title": "Policy Effective Date"
+        },
+        "policy_expiration_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Policy expiration date, e.g. 2024-01-01",
+          "title": "Policy Expiration Date"
+        },
+        "coverage_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Type of coverage (e.g., Comprehensive, Collision, Liability, Uninsured Motorist)",
+          "title": "Coverage Type"
+        },
+        "deductible": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Deductible amount",
+          "title": "Deductible"
+        },
+        "deductible_currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Currency of deductible, e.g. USD",
+          "title": "Deductible Currency"
+        }
+      },
+      "required": [
+        "policy_number",
+        "claim_number",
+        "policy_effective_date",
+        "policy_expiration_date",
+        "coverage_type",
+        "deductible",
+        "deductible_currency"
+      ],
+      "title": "PolicyInfo",
+      "type": "object"
+    },
+    "PolicyholderInfo": {
+      "description": "Information about the policyholder filing the auto claim.",
+      "properties": {
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First name of the policyholder",
+          "title": "First Name"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Last name of the policyholder",
+          "title": "Last Name"
+        },
+        "date_of_birth": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date of birth, e.g. 1980-01-15",
+          "title": "Date Of Birth"
+        },
+        "drivers_license_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Driver's license number",
+          "title": "Drivers License Number"
+        },
+        "drivers_license_state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "State that issued the driver's license",
+          "title": "Drivers License State"
+        },
+        "telephone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Contact telephone number",
+          "title": "Telephone"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Email address",
+          "title": "Email"
+        },
+        "mailing_address": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Address"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Mailing address of the policyholder"
+        }
+      },
+      "required": [
+        "first_name",
+        "last_name",
+        "date_of_birth",
+        "drivers_license_number",
+        "drivers_license_state",
+        "telephone",
+        "email",
+        "mailing_address"
+      ],
+      "title": "PolicyholderInfo",
+      "type": "object"
+    },
+    "Signature": {
+      "properties": {
+        "signatory": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the person who signed",
+          "title": "Signatory"
+        },
+        "is_signed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Indicates if the document is signed. Check for signature in image files.",
+          "title": "Is Signed"
+        }
+      },
+      "required": [
+        "signatory",
+        "is_signed"
+      ],
+      "title": "Signature",
+      "type": "object"
+    },
+    "ThirdPartyInfo": {
+      "description": "Information about other parties involved in the accident.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the other party",
+          "title": "Name"
+        },
+        "telephone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Telephone number of the other party",
+          "title": "Telephone"
+        },
+        "insurance_company": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Other party's insurance company",
+          "title": "Insurance Company"
+        },
+        "insurance_policy_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Other party's insurance policy number",
+          "title": "Insurance Policy Number"
+        },
+        "vehicle_year": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Other party's vehicle year",
+          "title": "Vehicle Year"
+        },
+        "vehicle_make": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Other party's vehicle make",
+          "title": "Vehicle Make"
+        },
+        "vehicle_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Other party's vehicle model",
+          "title": "Vehicle Model"
+        },
+        "vehicle_license_plate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Other party's license plate number",
+          "title": "Vehicle License Plate"
+        }
+      },
+      "required": [
+        "name",
+        "telephone",
+        "insurance_company",
+        "insurance_policy_number",
+        "vehicle_year",
+        "vehicle_make",
+        "vehicle_model",
+        "vehicle_license_plate"
+      ],
+      "title": "ThirdPartyInfo",
+      "type": "object"
+    },
+    "VehicleInfo": {
+      "description": "Details about the insured vehicle.",
+      "properties": {
+        "year": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Vehicle year, e.g. 2021",
+          "title": "Year"
+        },
+        "make": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Vehicle make, e.g. Toyota",
+          "title": "Make"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Vehicle model, e.g. Camry",
+          "title": "Model"
+        },
+        "vin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Vehicle Identification Number (VIN)",
+          "title": "Vin"
+        },
+        "license_plate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "License plate number",
+          "title": "License Plate"
+        },
+        "license_plate_state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "State of license plate",
+          "title": "License Plate State"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Vehicle color",
+          "title": "Color"
+        },
+        "odometer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Odometer reading at time of loss",
+          "title": "Odometer"
+        },
+        "vehicle_condition_prior": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Condition of vehicle prior to incident (e.g., Good, Fair, Poor)",
+          "title": "Vehicle Condition Prior"
+        }
+      },
+      "required": [
+        "year",
+        "make",
+        "model",
+        "vin",
+        "license_plate",
+        "license_plate_state",
+        "color",
+        "odometer",
+        "vehicle_condition_prior"
+      ],
+      "title": "VehicleInfo",
+      "type": "object"
+    }
+  },
+  "description": "A class representing an Auto / Vehicle First Notice of Loss form.\n\nAttributes:\n    policyholder_info: Policyholder contact and licence details\n    policy_info: Auto insurance policy information\n    vehicle_info: Insured vehicle details\n    accident_details: Accident or loss event details\n    damage_estimate: Vehicle damage and repair estimate\n    third_parties: List of other parties involved\n    declaration: Declaration and signature section",
+  "properties": {
+    "policyholder_info": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PolicyholderInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Policyholder contact and licence details"
+    },
+    "policy_info": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PolicyInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Auto insurance policy information"
+    },
+    "vehicle_info": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VehicleInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Insured vehicle details"
+    },
+    "accident_details": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AccidentDetails"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Accident or loss event details"
+    },
+    "damage_estimate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DamageEstimate"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Vehicle damage and repair estimate"
+    },
+    "third_parties": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/ThirdPartyInfo"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "List of other parties involved in the accident",
+      "title": "Third Parties"
+    },
+    "declaration": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Declaration"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Declaration and signature section"
+    }
+  },
+  "required": [
+    "policyholder_info",
+    "policy_info",
+    "vehicle_info",
+    "accident_details",
+    "damage_estimate",
+    "third_parties",
+    "declaration"
+  ],
+  "title": "AutoVehicleFNOL",
+  "type": "object"
+}

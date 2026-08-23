@@ -1,0 +1,509 @@
+{
+  "$defs": {
+    "Address": {
+      "description": "A class representing an address.\n\nAttributes:\n    street: Street address\n    city: City, e.g. New York\n    state: State, e.g. NY\n    postal_code: Postal code, e.g. 10001\n    country: Country, e.g. USA",
+      "properties": {
+        "street": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Street address, e.g. 123 Main St.",
+          "title": "Street"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "City, e.g. New York",
+          "title": "City"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "State, e.g. NY",
+          "title": "State"
+        },
+        "postal_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Postal code, e.g. 10001",
+          "title": "Postal Code"
+        },
+        "country": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Country, e.g. USA",
+          "title": "Country"
+        }
+      },
+      "required": [
+        "street",
+        "city",
+        "state",
+        "postal_code",
+        "country"
+      ],
+      "title": "Address",
+      "type": "object"
+    },
+    "ClaimsDisclaimer": {
+      "description": "A class representing claims disclaimer.\nWhen Text values in the fields has some noise characters, it should be removed by GPT.\nFor example, \"Apple Computer\" should be \"Apple Computer\".\n\nAttributes:\n    disclaimer: Disclaimer information.\n    policyholder_signature: Signature of the policyholder.\n    date: Date of the signature.",
+      "properties": {
+        "disclaimer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Disclaimer information",
+          "title": "Disclaimer"
+        },
+        "policyholder_signature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Signature"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Signature of the policyholder"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date of the signature e.g. 2023-01-01",
+          "title": "Date"
+        }
+      },
+      "required": [
+        "disclaimer",
+        "policyholder_signature",
+        "date"
+      ],
+      "title": "ClaimsDisclaimer",
+      "type": "object"
+    },
+    "PolicyClaimInfo": {
+      "description": "A class representing policy and claim information.\n\nAttributes:\n    first_name: First name of the policy holder.\n    last_name: Last name of the policy holder.\n    telephone_number: Telephone number of the policy holder.\n    policy_number: Policy number.\n    coverage_type: Type of coverage.\n    claim_number: Claim number.\n    policy_effective_date: Policy effective date.\n    policy_expiration_date: Policy expiration date.\n    damage_deductible: Damage deductible.\n    date_of_damage_loss: Date of damage/loss.\n    time_of_loss: Time of loss.\n    date_prepared: Date prepared.\n    property_address: Address of the property.\n    mailing_address: Mailing address.",
+      "properties": {
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First name of the policy holder",
+          "title": "First Name"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Last name of the policy holder",
+          "title": "Last Name"
+        },
+        "telephone_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Telephone number of the policy holder",
+          "title": "Telephone Number"
+        },
+        "policy_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Policy number",
+          "title": "Policy Number"
+        },
+        "coverage_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Type of coverage",
+          "title": "Coverage Type"
+        },
+        "claim_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Claim number",
+          "title": "Claim Number"
+        },
+        "policy_effective_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Policy effective date, e.g. 2023-01-01",
+          "title": "Policy Effective Date"
+        },
+        "policy_expiration_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Policy expiration date, e.g. 2024-01-01",
+          "title": "Policy Expiration Date"
+        },
+        "damage_deductible": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Damage deductible e.g. 500.0",
+          "title": "Damage Deductible"
+        },
+        "damage_deductible_currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Currency of the damage deductible e.g. USD, just in case it can't be extracted, the value should be got by GPT from Policyholder's Property Address",
+          "title": "Damage Deductible Currency"
+        },
+        "date_of_damage_loss": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date of damage/loss e.g. 2023-01-01",
+          "title": "Date Of Damage Loss"
+        },
+        "time_of_loss": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Time of loss e.g. 14:30",
+          "title": "Time Of Loss"
+        },
+        "date_prepared": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date prepared e.g. 2023-01-01",
+          "title": "Date Prepared"
+        },
+        "property_address": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Address"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Address of the property e.g. 123 Main St., City, Country"
+        },
+        "mailing_address": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Address"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Mailing address e.g. 456 Elm St., City, Country"
+        }
+      },
+      "required": [
+        "first_name",
+        "last_name",
+        "telephone_number",
+        "policy_number",
+        "coverage_type",
+        "claim_number",
+        "policy_effective_date",
+        "policy_expiration_date",
+        "damage_deductible",
+        "damage_deductible_currency",
+        "date_of_damage_loss",
+        "time_of_loss",
+        "date_prepared",
+        "property_address",
+        "mailing_address"
+      ],
+      "title": "PolicyClaimInfo",
+      "type": "object"
+    },
+    "PropertyClaimDetails": {
+      "description": "A class representing property claim details.\n\nAttributes:\n    item: Item name.\n    description: Description of the item.\n    date_acquired: Date the item was acquired.\n    cost_new: Cost of the item when new.\n    cost_new_currency: Currency of the cost new.\n    replacement_repair: Replacement or repair cost.\n    replacement_repair_currency: Currency of the replacement/repair cost.",
+      "properties": {
+        "item": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Item name",
+          "title": "Item"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Description of the item",
+          "title": "Description"
+        },
+        "date_acquired": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Date the item was acquired e.g. 2023-01-01",
+          "title": "Date Acquired"
+        },
+        "cost_new": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Cost of the item when new e.g. 1000.0",
+          "title": "Cost New"
+        },
+        "cost_new_currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Currency of the cost new e.g. USD. just in case it can't be extracted, the value should be got by GPT from Policyholder's Property Address",
+          "title": "Cost New Currency"
+        },
+        "replacement_repair": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Replacement or repair cost e.g. 500.0.",
+          "title": "Replacement Repair"
+        },
+        "replacement_repair_currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Currency of the replacement/repair cost e.g. USD, just in case it can't be extracted, the value should be got by GPT from Policyholder's Property Address",
+          "title": "Replacement Repair Currency"
+        }
+      },
+      "required": [
+        "item",
+        "description",
+        "date_acquired",
+        "cost_new",
+        "cost_new_currency",
+        "replacement_repair",
+        "replacement_repair_currency"
+      ],
+      "title": "PropertyClaimDetails",
+      "type": "object"
+    },
+    "Signature": {
+      "description": "A class representing a signature for an invoice.\n\nAttributes:\n    signatory: Name of the person who signed the invoice.\n    is_signed: Indicates if the invoice is signed.",
+      "properties": {
+        "signatory": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Name of the person who signed the invoice",
+          "title": "Signatory"
+        },
+        "is_signed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Indicates if the invoice is signed. GPT should check whether it has signature in image files. if there is Sign, fill it up as True",
+          "title": "Is Signed"
+        }
+      },
+      "required": [
+        "signatory",
+        "is_signed"
+      ],
+      "title": "Signature",
+      "type": "object"
+    }
+  },
+  "description": "A class representing a property loss or damage claim form.\n\nAttributes:\n    policy_claim_info: Policy and claim information.\n    property_claim_details: List of property claim details.\n    claims_disclaimer: Claims disclaimer information.",
+  "properties": {
+    "policy_claim_info": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PolicyClaimInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Policy and claim information"
+    },
+    "property_claim_details": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/PropertyClaimDetails"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "List of property claim details",
+      "title": "Property Claim Details"
+    },
+    "claims_disclaimer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ClaimsDisclaimer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Claims disclaimer information"
+    }
+  },
+  "required": [
+    "policy_claim_info",
+    "property_claim_details",
+    "claims_disclaimer"
+  ],
+  "title": "PropertyLossDamageClaimForm",
+  "type": "object"
+}
