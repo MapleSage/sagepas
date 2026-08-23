@@ -230,6 +230,31 @@ pub async fn submit(
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct FnolListRow {
+    pub process_id: Uuid,
+    pub ticket_id: Option<String>,
+    pub original_filename: Option<String>,
+    pub status: String,
+    pub confidence: Option<f64>,
+    pub human_review_required: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// GET /api/v1/fnol/submissions -- the intake queue.
+pub async fn list_submissions(State(state): State<AppState>) -> Result<Json<Vec<FnolListRow>>, (StatusCode, String)> {
+    let rows = sqlx::query_as::<_, FnolListRow>(
+        r#"
+        SELECT process_id, ticket_id, original_filename, status, confidence, human_review_required, created_at
+        FROM fnol_submissions ORDER BY created_at DESC LIMIT 200
+        "#,
+    )
+    .fetch_all(&**state.db)
+    .await
+    .map_err(internal)?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct FnolTraceRow {
     pub process_id: Uuid,
     pub ticket_id: Option<String>,

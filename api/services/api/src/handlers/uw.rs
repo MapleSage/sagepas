@@ -221,6 +221,30 @@ pub async fn upload(
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct UwListRow {
+    pub job_id: String,
+    pub deal_id: Option<String>,
+    pub status: String,
+    pub confidence: Option<f64>,
+    pub recommendation: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// GET /api/v1/uw/jobs -- the submission queue.
+pub async fn list_jobs(State(state): State<AppState>) -> Result<Json<Vec<UwListRow>>, (StatusCode, String)> {
+    let rows = sqlx::query_as::<_, UwListRow>(
+        r#"
+        SELECT job_id, deal_id, status, confidence, recommendation, created_at
+        FROM uw_jobs ORDER BY created_at DESC LIMIT 200
+        "#,
+    )
+    .fetch_all(&**state.db)
+    .await
+    .map_err(internal)?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct UwTraceRow {
     pub job_id: String,
     pub deal_id: Option<String>,

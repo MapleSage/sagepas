@@ -13,11 +13,15 @@ import {
   ShieldRegular, ShieldFilled,
   ChartMultipleRegular, ChartMultipleFilled,
   BuildingBankRegular, BuildingBankFilled,
+  DocumentRegular, DocumentFilled,
+  ClipboardTaskListLtrRegular, ClipboardTaskListLtrFilled,
 } from '@fluentui/react-icons'
 import QuotesPage from './components/quotes/QuotesPage'
 import PoliciesPage from './components/policies/PoliciesPage'
 import DealersPage from './components/dealers/DealersPage'
 import ReportsPage from './components/reports/ReportsPage'
+import FnolPage from './components/fnol/FnolPage'
+import UwPage from './components/uw/UwPage'
 import { FloatingChat } from './components/FloatingChat'
 import { pasApi } from './api/client'
 import { D } from './theme'
@@ -59,6 +63,10 @@ const ALL_TABS: TabDef[] = [
     sub: [{ label: 'All Policies', path: '/policies' }, { label: 'Active', path: '/policies?status=ISSUED' }, { label: 'Endorsed', path: '/policies?status=ENDORSED' }, { label: 'Cancelled', path: '/policies?status=CANCELLED' }] },
   { id: 'dealers', path: '/dealers', label: 'Dealers', icon: BuildingBankRegular, iconFilled: BuildingBankFilled,
     sub: [{ label: 'All Dealers', path: '/dealers' }, { label: 'Add Dealer', path: '/dealers?action=add' }, { label: 'Commissions', path: '/dealers' }] },
+  { id: 'fnol', path: '/fnol', label: 'FNOL', icon: DocumentRegular, iconFilled: DocumentFilled,
+    sub: [{ label: 'Intake Queue', path: '/fnol' }, { label: 'Submit Document', path: '/fnol?view=submit' }] },
+  { id: 'uw', path: '/uw', label: 'Underwriting', icon: ClipboardTaskListLtrRegular, iconFilled: ClipboardTaskListLtrFilled,
+    sub: [{ label: 'Job Queue', path: '/uw' }, { label: 'Upload Submission', path: '/uw?view=upload' }] },
   { id: 'reports', path: '/reports', label: 'Reports', icon: ChartMultipleRegular, iconFilled: ChartMultipleFilled,
     sub: [{ label: 'Overview', path: '/reports' }, { label: 'BDX Export', path: '/reports?view=bdx' }] },
 ]
@@ -474,6 +482,8 @@ function AppShell() {
             <Route path="/quotes" element={<QuotesPage />} />
             <Route path="/policies" element={<PoliciesPage />} />
             <Route path="/dealers" element={<DealersPage />} />
+            <Route path="/fnol" element={<FnolPage />} />
+            <Route path="/uw" element={<UwPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="*" element={<DashboardPage onNavigate={navigate} />} />
           </Routes>

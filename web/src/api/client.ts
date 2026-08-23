@@ -132,6 +132,30 @@ export const pasApi = {
     const r=await fetch(`/api/v1/policies/${encodeURIComponent(id)}/document`,{headers:token?{Authorization:`Bearer ${token}`}:{}})
     if(!r.ok) throw new Error(`Document request failed (${r.status})`); return r.blob()
   },
+  // Multipart -- can't go through request() above, it forces JSON content-type.
+  fnolSubmissions: () => request('/fnol/submissions'),
+  fnolTrace: (id:string) => request(`/fnol/${encodeURIComponent(id)}/trace`),
+  fnolSubmit: (form: FormData) => uploadRequest('/fnol/submit', form),
+  uwJobs: () => request('/uw/jobs'),
+  uwTrace: (id:string) => request(`/uw/${encodeURIComponent(id)}/trace`),
+  uwUpload: (form: FormData) => uploadRequest('/uw/upload', form),
+}
+
+async function uploadRequest(path: string, form: FormData) {
+  const token = await getBearerToken()
+  const response = await fetch(`/api/v1${path}`, {
+    method: 'POST',
+    body: form,
+    headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  })
+  const text = await response.text()
+  let data: any = null
+  try { data = text ? JSON.parse(text) : null } catch { data = text }
+  if (!response.ok) {
+    const error: any = new Error(typeof data === 'string' ? data : data?.detail || data?.message || `Request failed (${response.status})`)
+    error.status = response.status; error.data = data; throw error
+  }
+  return data
 }
 
 export function listOf(body:any,key:string){ return Array.isArray(body)?body:(body?.[key]||body?.items||[]) }

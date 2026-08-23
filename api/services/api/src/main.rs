@@ -264,8 +264,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/connect/chat", post(handlers::connect::chat))
         .route("/api/v1/connect/memory", get(handlers::connect::memory))
         .route("/api/v1/connect/history", get(handlers::connect::history))
+        .route("/api/v1/fnol/submissions", get(handlers::fnol::list_submissions))
         .route("/api/v1/fnol/submit", post(handlers::fnol::submit))
         .route("/api/v1/fnol/:id/trace", get(handlers::fnol::trace))
+        .route("/api/v1/uw/jobs", get(handlers::uw::list_jobs))
         .route("/api/v1/uw/upload", post(handlers::uw::upload))
         .route("/api/v1/uw/:id/trace", get(handlers::uw::trace))
         .route(
