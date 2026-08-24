@@ -1,13 +1,23 @@
 //! Ported from sagesure-us's `fnol-du-adapter::content_understanding`, with
-//! one deliberate fix: that version routed images to `prebuilt-imageSearch`
-//! (an image-similarity analyzer, not a field extractor), which is why image
-//! ingestion there is accepted but produces meaningfully worse structured
-//! output than PDFs. CU's `prebuilt-document` analyzer accepts image inputs
-//! (JPEG/PNG/BMP/TIFF/HEIF) directly and does real OCR+layout extraction on
-//! them the same as PDFs -- there was no CU limitation forcing the image
-//! branch, just the wrong analyzer choice. This client always uses
-//! `prebuilt-document`, for every input type. See work order Phase 1 /
-//! plan file `abstract-yawning-pinwheel.md`.
+//! two deliberate fixes over that version:
+//!
+//! 1. That version routed images to `prebuilt-imageSearch` (an
+//!    image-similarity analyzer, not a field extractor) -- there was no CU
+//!    limitation forcing that branch, just the wrong analyzer choice.
+//!
+//! 2. Analyzer choice corrected again, live-tested against this exact CU
+//!    resource (work order Step 2 investigation): `prebuilt-document`
+//!    returns full `markdown` but zero `pages[].words`/`pages[].lines` --
+//!    confirmed via a raw analyze call (`page1: words=0 lines=0`). Neither
+//!    analyzer returns schema-bound `fields` without a custom analyzer
+//!    template, so that's not the differentiator. `prebuilt-layout` (the
+//!    classic Document Intelligence layout model CU also exposes) returns
+//!    the *identical* markdown (confirmed byte-identical length) plus real
+//!    per-word confidence and position (`page1: words=494 lines=167`,
+//!    first word "LIFE" conf=0.996) -- strictly more data for the same
+//!    markdown, which is what the citation-grounding primitive
+//!    (`evaluate.rs`) needs and `prebuilt-document` cannot supply. This
+//!    client always uses `prebuilt-layout`, for every input type.
 //!
 //! Also carries the `REQUEST_TIMEOUT_SECONDS`-equivalent fix noted in
 //! `FREEZE-INSTRUCTION-2026-08-11.sh`'s freeze-time gap analysis: the
@@ -90,9 +100,11 @@ pub struct CuDocumentContent {
     pub analyzer_id: Option<String>,
     #[serde(rename = "mimeType")]
     pub mime_type: Option<String>,
-    /// Per-page word/line position + confidence data. `prebuilt-document`
-    /// populates this; omitted entirely by some analyzer configs, hence
-    /// `default` rather than a hard parse failure.
+    /// Per-page word/line position + confidence data. `prebuilt-layout`
+    /// populates this; `prebuilt-document` does not (confirmed live --
+    /// `page1: words=0 lines=0` for the identical document). `default`
+    /// rather than a hard parse failure since other analyzer configs may
+    /// still omit it.
     #[serde(default)]
     pub pages: Vec<CuPage>,
 }
@@ -264,9 +276,13 @@ impl ContentUnderstandingClient {
     }
 }
 
-/// Every content type -- PDF or image -- uses the same real document
-/// analyzer. There is no format-based reason to route images differently:
-/// `prebuilt-document` does OCR+layout extraction on image inputs directly.
+/// Every content type -- PDF or image -- uses the same analyzer. There is
+/// no format-based reason to route images differently: Document
+/// Intelligence's layout model accepts image inputs directly, same as PDFs
+/// (per Azure's own multi-format support for `prebuilt-layout`; not
+/// independently re-verified against an image input in this session --
+/// only the PDF path has live evidence here, see `content_understanding.rs`
+/// module docs).
 pub fn select_analyzer(_content_type: &str) -> &'static str {
-    "prebuilt-document"
+    "prebuilt-layout"
 }

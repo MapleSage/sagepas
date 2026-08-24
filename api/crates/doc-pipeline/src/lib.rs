@@ -217,7 +217,14 @@ pub async fn run_pipeline(
                             stages.push(stage_finish(
                                 ocr_stage,
                                 "complete",
-                                json!({ "analyzer_id": analyzer_id, "content_blocks": result.result.contents.len(), "cu_page_count": pages.len() }),
+                                json!({
+                                    "analyzer_id": analyzer_id,
+                                    "content_blocks": result.result.contents.len(),
+                                    "cu_page_count": pages.len(),
+                                    "page1_line_count": pages.first().map(|p| p.lines.len()),
+                                    "page1_word_count": pages.first().map(|p| p.words.len()),
+                                    "page1_sample_line": pages.first().and_then(|p| p.lines.first()).map(|l| l.content.clone()),
+                                }),
                             ));
                             (ocr_json, markdown, fields, pages)
                         }
