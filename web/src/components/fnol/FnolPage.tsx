@@ -36,14 +36,15 @@ export default function FnolPage(){
   {view==='list'&&<section style={{background:D.surface,border:`1px solid ${D.border}`,borderRadius:12,overflow:'hidden'}}>
    <div style={{padding:'12px 16px',borderBottom:`1px solid ${D.border}`,fontSize:12,color:D.sub}}>{submissions.length} submission{submissions.length===1?'':'s'}</div>
    <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse'}}>
-    <thead><tr style={{background:'#F7FAFC'}}>{['File','Status','Confidence','Ticket','Submitted'].map(x=><th key={x} style={{padding:'10px 14px',textAlign:'left',fontSize:10,color:D.sub,textTransform:'uppercase',letterSpacing:'.05em'}}>{x}</th>)}</tr></thead>
+    <thead><tr style={{background:'#F7FAFC'}}>{['File','Status','Entity','Schema','Ticket','Submitted'].map(x=><th key={x} style={{padding:'10px 14px',textAlign:'left',fontSize:10,color:D.sub,textTransform:'uppercase',letterSpacing:'.05em'}}>{x}</th>)}</tr></thead>
     <tbody>
-     {loading&&<tr><td colSpan={5} style={{padding:40,textAlign:'center',color:D.sub}}>Loading FNOL queue…</td></tr>}
-     {!loading&&submissions.length===0&&<tr><td colSpan={5} style={{padding:48,textAlign:'center',color:D.sub}}>No submissions yet.</td></tr>}
+     {loading&&<tr><td colSpan={6} style={{padding:40,textAlign:'center',color:D.sub}}>Loading FNOL queue…</td></tr>}
+     {!loading&&submissions.length===0&&<tr><td colSpan={6} style={{padding:48,textAlign:'center',color:D.sub}}>No submissions yet.</td></tr>}
      {submissions.map(s=><tr key={s.process_id} onClick={()=>openTrace(s.process_id)} style={{borderTop:`1px solid ${D.border}`,cursor:'pointer'}}>
       <td style={{padding:'12px 14px',fontSize:13,color:D.text}}>{s.original_filename||s.process_id}</td>
       <td style={{padding:'12px 14px'}}>{badge(s.status,s.human_review_required)}</td>
       <td style={{padding:'12px 14px',fontSize:13,color:D.sub}}>{s.confidence!=null?`${Math.round(s.confidence*100)}%`:'—'}</td>
+      <td style={{padding:'12px 14px',fontSize:13,color:D.sub}}>{s.schema_score!=null?`${Math.round(s.schema_score*100)}%`:'—'}</td>
       <td style={{padding:'12px 14px',fontSize:12,color:D.sub}}>{s.ticket_id||'—'}</td>
       <td style={{padding:'12px 14px',fontSize:12,color:D.sub}}>{s.created_at?new Date(s.created_at).toLocaleString():'—'}</td>
      </tr>)}
@@ -86,7 +87,8 @@ function FnolSubmitForm({onDone}:{onDone:()=>void}){
  if(result)return <Section title="Submitted">
   <div style={{fontSize:13,color:D.text}}>Process ID: <strong>{result.process_id}</strong></div>
   <div style={{fontSize:13,color:D.text}}>Status: {badge(result.status,result.human_review_required)}</div>
-  <div style={{fontSize:13,color:D.text}}>Confidence: {Math.round(result.confidence*100)}%</div>
+  <div style={{fontSize:13,color:D.text}}>Entity score: {Math.round(result.confidence*100)}%</div>
+  <div style={{fontSize:13,color:D.text}}>Schema score: {Math.round(result.schema_score*100)}%</div>
   <button style={button(D.orange)} onClick={onDone}>Back to queue</button>
  </Section>
 
@@ -109,7 +111,8 @@ function FnolTraceView({trace,processId}:{trace:any;processId:string}){
    <div style={{fontSize:13,color:D.text}}>Process ID: {processId}</div>
    <div>{badge(trace.status,trace.human_review_required)}</div>
    <div style={{fontSize:13,color:D.text}}>Ticket: {trace.ticket_id||'—'}</div>
-   <div style={{fontSize:13,color:D.text}}>Confidence: {trace.confidence!=null?`${Math.round(trace.confidence*100)}%`:'—'}</div>
+   <div style={{fontSize:13,color:D.text}}>Entity score: {trace.confidence!=null?`${Math.round(trace.confidence*100)}%`:'—'}</div>
+   <div style={{fontSize:13,color:D.text}}>Schema score: {trace.schema_score!=null?`${Math.round(trace.schema_score*100)}%`:'—'}</div>
   </Section>
   <Section title="Pipeline stages">
    {stages.length===0&&<div style={{color:D.sub,fontSize:12}}>No stage data recorded.</div>}

@@ -28,7 +28,10 @@ pub struct FnolSubmitResponse {
     pub process_id: Uuid,
     pub ticket_id: Option<String>,
     pub status: String,
+    /// entity_score -- merged CU+GPT confidence the text was read correctly.
     pub confidence: f64,
+    /// Fraction of non-null fields -- was the schema satisfied.
+    pub schema_score: f64,
     pub human_review_required: bool,
     pub summary: serde_json::Value,
 }
@@ -178,8 +181,9 @@ pub async fn submit(
     // withhold the ticket.
     let subject = format!("FNOL: {} ({})", original_filename, if insurance_type.is_empty() { "unspecified" } else { &insurance_type });
     let content = format!(
-        "Automated FNOL intake. Confidence: {:.0}%. Review required: {}.\n\nExtracted summary:\n{}\n\nKB-grounded findings ({} of {} retrieved passages cited):\n{}",
-        result.confidence * 100.0,
+        "Automated FNOL intake. Entity score: {:.0}%. Schema score: {:.0}%. Review required: {}.\n\nExtracted summary:\n{}\n\nKB-grounded findings ({} of {} retrieved passages cited):\n{}",
+        result.entity_score * 100.0,
+        result.schema_score * 100.0,
         result.human_review_required,
         serde_json::to_string_pretty(&result.summary_json).unwrap_or_default(),
         kb_result.retrieved_count - kb_result.uncited_count,
@@ -210,7 +214,7 @@ pub async fn submit(
         r#"
         UPDATE fnol_submissions
         SET ticket_id = $2, status = $3, extracted_json = $4, summary_json = $5,
-            confidence = $6, human_review_required = $7, stages_json = $8, updated_at = now()
+            confidence = $6, schema_score = $7, human_review_required = $8, stages_json = $9, updated_at = now()
         WHERE process_id = $1
         "#,
     )
@@ -219,7 +223,8 @@ pub async fn submit(
     .bind(status)
     .bind(&result.extracted_json)
     .bind(&summary_with_kb)
-    .bind(result.confidence)
+    .bind(result.entity_score)
+    .bind(result.schema_score)
     .bind(result.human_review_required)
     .bind(serde_json::to_value(&result.stages).unwrap_or_default())
     .execute(&**state.db)
@@ -236,7 +241,7 @@ pub async fn submit(
     )
     .bind(process_id)
     .bind(chrono::Utc::now())
-    .bind(serde_json::json!({ "ticket_id": ticket_id, "confidence": result.confidence }))
+    .bind(serde_json::json!({ "ticket_id": ticket_id, "entity_score": result.entity_score, "schema_score": result.schema_score }))
     .execute(&**state.db)
     .await
     .map_err(internal)?;
@@ -245,7 +250,8 @@ pub async fn submit(
         process_id,
         ticket_id,
         status: status.to_string(),
-        confidence: result.confidence,
+        confidence: result.entity_score,
+        schema_score: result.schema_score,
         human_review_required: result.human_review_required,
         summary: result.summary_json,
     }))
@@ -258,6 +264,7 @@ pub struct FnolListRow {
     pub original_filename: Option<String>,
     pub status: String,
     pub confidence: Option<f64>,
+    pub schema_score: Option<f64>,
     pub human_review_required: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -266,7 +273,7 @@ pub struct FnolListRow {
 pub async fn list_submissions(State(state): State<AppState>) -> Result<Json<Vec<FnolListRow>>, (StatusCode, String)> {
     let rows = sqlx::query_as::<_, FnolListRow>(
         r#"
-        SELECT process_id, ticket_id, original_filename, status, confidence, human_review_required, created_at
+        SELECT process_id, ticket_id, original_filename, status, confidence, schema_score, human_review_required, created_at
         FROM fnol_submissions ORDER BY created_at DESC LIMIT 200
         "#,
     )
@@ -284,6 +291,7 @@ pub struct FnolTraceRow {
     pub extracted_json: Option<serde_json::Value>,
     pub summary_json: Option<serde_json::Value>,
     pub confidence: Option<f64>,
+    pub schema_score: Option<f64>,
     pub human_review_required: bool,
     pub stages_json: Option<serde_json::Value>,
 }
@@ -297,7 +305,7 @@ pub async fn trace(
 ) -> Result<Json<FnolTraceRow>, (StatusCode, String)> {
     let row = sqlx::query_as::<_, FnolTraceRow>(
         r#"
-        SELECT process_id, ticket_id, status, extracted_json, summary_json, confidence, human_review_required, stages_json
+        SELECT process_id, ticket_id, status, extracted_json, summary_json, confidence, schema_score, human_review_required, stages_json
         FROM fnol_submissions WHERE process_id = $1
         "#,
     )

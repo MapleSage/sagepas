@@ -39,6 +39,45 @@ pub enum CuError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CuSpan {
+    pub offset: i64,
+    pub length: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CuWord {
+    pub content: String,
+    pub span: CuSpan,
+    pub confidence: f64,
+    #[serde(default)]
+    pub polygon: Option<Vec<f64>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CuLine {
+    pub content: String,
+    pub span: CuSpan,
+    #[serde(default)]
+    pub polygon: Option<Vec<f64>>,
+}
+
+/// Matches the reference (`azure_helper/model/content_understanding.py`
+/// `Page`) closely enough to reuse its line/word confidence-derivation
+/// approach: CU gives per-*word* confidence, not per-line, so a line's
+/// confidence is derived (min of its contained words) -- see `evaluate.rs`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CuPage {
+    #[serde(rename = "pageNumber")]
+    pub page_number: i32,
+    pub width: f64,
+    pub height: f64,
+    #[serde(default)]
+    pub words: Vec<CuWord>,
+    #[serde(default)]
+    pub lines: Vec<CuLine>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CuDocumentContent {
     pub markdown: String,
     pub kind: String,
@@ -51,6 +90,11 @@ pub struct CuDocumentContent {
     pub analyzer_id: Option<String>,
     #[serde(rename = "mimeType")]
     pub mime_type: Option<String>,
+    /// Per-page word/line position + confidence data. `prebuilt-document`
+    /// populates this; omitted entirely by some analyzer configs, hence
+    /// `default` rather than a hard parse failure.
+    #[serde(default)]
+    pub pages: Vec<CuPage>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

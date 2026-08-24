@@ -48,6 +48,26 @@ fn safe_truncate(s: &str, max_bytes: usize) -> &str {
     &s[..end]
 }
 
+/// Model used for extraction specifically, independent of whatever the
+/// caller's default deployment is. Deliberate: reasoning-tier deployments
+/// (e.g. `gpt-5.6-luna`, this workspace's default) reject logprobs outright
+/// -- confirmed live against this exact Azure OpenAI resource. `gpt-4.1` is
+/// deployed on the same resource and returns them, which the Evaluate stage
+/// needs for its GPT-side confidence half. Not configurable via `infra`'s
+/// `AppConfig` because this is an extraction-quality decision, not a
+/// deployment/environment one -- every environment should use the same
+/// model for this specific call.
+const EXTRACTION_MODEL: &str = "gpt-4.1";
+
+/// Result of one Map-stage GPT call: the parsed structured fields, the raw
+/// text GPT returned (needed to locate each field's token span for
+/// confidence), and the per-token logprobs themselves.
+pub struct MapResult {
+    pub fields: Value,
+    pub generated_text: String,
+    pub logprobs: Vec<Value>,
+}
+
 /// Calls GPT with the real field schema injected into the system prompt,
 /// forcing schema-constrained structured output. `page_images` are raw PNG
 /// (or the original image bytes for a direct image upload) -- reference
@@ -64,7 +84,7 @@ pub async fn extract_structured_fields(
     cu_fields: Option<&Value>,
     schema_json: &str,
     page_images: &[Vec<u8>],
-) -> Result<Value, StructuredExtractionError> {
+) -> Result<MapResult, StructuredExtractionError> {
     let schema_value: Value = serde_json::from_str(schema_json)
         .map_err(|e| StructuredExtractionError::InvalidJson(format!("embedded schema: {e}")))?;
     let schema_compact = serde_json::to_string(&schema_value).unwrap_or_default();
@@ -108,18 +128,10 @@ You must return ONLY valid JSON that matches this exact schema:
         "sending page images to GPT extraction (reference-parity Map stage)"
     );
 
-    let response = openai
-        .chat_completion(&messages, "", Some(0.1), Some(4096))
+    let (content, logprobs) = openai
+        .chat_completion_with_logprobs(&messages, EXTRACTION_MODEL, 5, Some(4096))
         .await
         .map_err(|e| StructuredExtractionError::GptFailed(e.to_string()))?;
-
-    let content = response
-        .get("choices")
-        .and_then(|v| v.get(0))
-        .and_then(|v| v.get("message"))
-        .and_then(|v| v.get("content"))
-        .and_then(|v| v.as_str())
-        .ok_or(StructuredExtractionError::NoContent)?;
 
     let cleaned = content
         .trim()
@@ -128,6 +140,12 @@ You must return ONLY valid JSON that matches this exact schema:
         .trim_end_matches("```")
         .trim();
 
-    serde_json::from_str(cleaned)
-        .map_err(|e| StructuredExtractionError::InvalidJson(format!("{e}: {cleaned}")))
+    let fields = serde_json::from_str(cleaned)
+        .map_err(|e| StructuredExtractionError::InvalidJson(format!("{e}: {cleaned}")))?;
+
+    Ok(MapResult {
+        fields,
+        generated_text: content,
+        logprobs,
+    })
 }

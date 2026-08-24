@@ -27,7 +27,10 @@ pub struct UwUploadResponse {
     pub job_id: String,
     pub deal_id: Option<String>,
     pub status: String,
+    /// entity_score -- merged CU+GPT confidence the text was read correctly.
     pub confidence: f64,
+    /// Fraction of non-null fields -- was the schema satisfied.
+    pub schema_score: f64,
     pub human_review_required: bool,
     pub summary: serde_json::Value,
 }
@@ -195,7 +198,7 @@ pub async fn upload(
         r#"
         UPDATE uw_jobs
         SET deal_id = $2, status = $3, analysis_json = $4,
-            confidence = $5, recommendation = $6, stages_json = $7, updated_at = now()
+            confidence = $5, schema_score = $6, recommendation = $7, stages_json = $8, updated_at = now()
         WHERE job_id = $1
         "#,
     )
@@ -203,7 +206,8 @@ pub async fn upload(
     .bind(&deal_id)
     .bind(status)
     .bind(&analysis_with_kb)
-    .bind(result.confidence)
+    .bind(result.entity_score)
+    .bind(result.schema_score)
     .bind(recommendation)
     .bind(serde_json::to_value(&result.stages).unwrap_or_default())
     .execute(&**state.db)
@@ -214,7 +218,8 @@ pub async fn upload(
         job_id,
         deal_id,
         status: status.to_string(),
-        confidence: result.confidence,
+        confidence: result.entity_score,
+        schema_score: result.schema_score,
         human_review_required: result.human_review_required,
         summary: result.summary_json,
     }))
@@ -226,6 +231,7 @@ pub struct UwListRow {
     pub deal_id: Option<String>,
     pub status: String,
     pub confidence: Option<f64>,
+    pub schema_score: Option<f64>,
     pub recommendation: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -234,7 +240,7 @@ pub struct UwListRow {
 pub async fn list_jobs(State(state): State<AppState>) -> Result<Json<Vec<UwListRow>>, (StatusCode, String)> {
     let rows = sqlx::query_as::<_, UwListRow>(
         r#"
-        SELECT job_id, deal_id, status, confidence, recommendation, created_at
+        SELECT job_id, deal_id, status, confidence, schema_score, recommendation, created_at
         FROM uw_jobs ORDER BY created_at DESC LIMIT 200
         "#,
     )
@@ -251,6 +257,7 @@ pub struct UwTraceRow {
     pub status: String,
     pub analysis_json: Option<serde_json::Value>,
     pub confidence: Option<f64>,
+    pub schema_score: Option<f64>,
     pub recommendation: Option<String>,
     pub stages_json: Option<serde_json::Value>,
 }
@@ -262,7 +269,7 @@ pub async fn trace(
 ) -> Result<Json<UwTraceRow>, (StatusCode, String)> {
     let row = sqlx::query_as::<_, UwTraceRow>(
         r#"
-        SELECT job_id, deal_id, status, analysis_json, confidence, recommendation, stages_json
+        SELECT job_id, deal_id, status, analysis_json, confidence, schema_score, recommendation, stages_json
         FROM uw_jobs WHERE job_id = $1
         "#,
     )

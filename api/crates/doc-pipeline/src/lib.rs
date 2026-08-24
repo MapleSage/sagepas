@@ -18,6 +18,7 @@
 //! built) instead of only exposing a final score.
 
 pub mod content_understanding;
+pub mod evaluate;
 pub mod kb_scoring;
 pub mod pdf_render;
 pub mod structured_extraction;
@@ -101,13 +102,20 @@ pub struct PipelineResult {
     /// even after structured extraction runs -- this is what the "source
     /// document region" side of the acceptance test points back into.
     pub ocr_json: Value,
-    /// Stage: extract. Schema-constrained structured fields, each wrapped
-    /// with what page/offset it came from where determinable.
+    /// Stage: extract + evaluate. Schema-constrained structured fields,
+    /// each non-null leaf wrapped as `{value, confidence, page_number,
+    /// text_offset_start, text_offset_end}` -- the citation the acceptance
+    /// test's "trace back to the source document region" half needs.
     pub extracted_json: Value,
-    /// Stage: validate. Missing-required-field report + the confidence
-    /// score that drives human-in-loop routing.
+    /// Stage: evaluate. Missing-required-field report + both scores.
     pub summary_json: Value,
-    pub confidence: f64,
+    /// Merged CU (line-match) + GPT (logprob) confidence, averaged across
+    /// fields -- "was the text read correctly." See `evaluate.rs`.
+    pub entity_score: f64,
+    /// Fraction of non-null fields. Unchanged formula from this pipeline's
+    /// original single `confidence` figure -- renamed honestly, not
+    /// replaced (work order Step 3 correction).
+    pub schema_score: f64,
     pub human_review_required: bool,
     pub stages: Vec<StageRecord>,
 }
@@ -133,9 +141,10 @@ fn stage_finish(mut stage: StageRecord, status: &str, detail: Value) -> StageRec
     stage
 }
 
-/// Runs ingest -> OCR (CU) -> extract (GPT, schema-constrained) -> validate.
+/// Runs ingest -> OCR (CU) -> extract (GPT-4.1, page images + markdown,
+/// schema-constrained) -> evaluate (merged CU+GPT confidence, citations).
 /// Scoring and human-in-loop *decisioning* are domain-specific and live in
-/// the caller; this returns the confidence figure the caller's routing
+/// the caller; this returns the entity/schema scores the caller's routing
 /// depends on, but doesn't itself decide STP vs review vs decline.
 pub async fn run_pipeline(
     file_bytes: &[u8],
@@ -156,14 +165,14 @@ pub async fn run_pipeline(
 
     // ── Stage: OCR (Content Understanding) ──────────────────────────────
     let ocr_stage = stage_start("ocr");
-    let (ocr_json, markdown, cu_fields) = match cu_client {
+    let (ocr_json, markdown, cu_fields, cu_pages) = match cu_client {
         None => {
             stages.push(stage_finish(
                 ocr_stage,
                 "skipped",
                 json!({ "reason": "content understanding not configured" }),
             ));
-            (json!({ "extraction_method": "none" }), String::new(), None)
+            (json!({ "extraction_method": "none" }), String::new(), None, Vec::new())
         }
         Some(cu) => {
             let analyzer_id = select_analyzer(content_type);
@@ -175,7 +184,7 @@ pub async fn run_pipeline(
                         "failed",
                         json!({ "error": e.to_string() }),
                     ));
-                    (json!({ "extraction_method": "fallback_no_token", "error": e.to_string() }), String::new(), None)
+                    (json!({ "extraction_method": "fallback_no_token", "error": e.to_string() }), String::new(), None, Vec::new())
                 }
                 Ok(bearer) => {
                     match cu.analyze_bytes(analyzer_id, file_bytes, &bearer, 120).await {
@@ -188,11 +197,18 @@ pub async fn run_pipeline(
                                 .collect::<Vec<_>>()
                                 .join("\n\n");
                             let fields = result.result.contents.first().and_then(|c| c.fields.clone());
+                            let pages: Vec<content_understanding::CuPage> = result
+                                .result
+                                .contents
+                                .iter()
+                                .flat_map(|c| c.pages.clone())
+                                .collect();
                             let ocr_json = json!({
                                 "extraction_method": "content_understanding",
                                 "analyzer_id": analyzer_id,
                                 "markdown": markdown,
                                 "fields": fields,
+                                "page_count": pages.len(),
                                 "pages": result.result.contents.iter().map(|c| json!({
                                     "start_page": c.start_page_number,
                                     "end_page": c.end_page_number,
@@ -201,9 +217,9 @@ pub async fn run_pipeline(
                             stages.push(stage_finish(
                                 ocr_stage,
                                 "complete",
-                                json!({ "analyzer_id": analyzer_id, "content_blocks": result.result.contents.len() }),
+                                json!({ "analyzer_id": analyzer_id, "content_blocks": result.result.contents.len(), "cu_page_count": pages.len() }),
                             ));
-                            (ocr_json, markdown, fields)
+                            (ocr_json, markdown, fields, pages)
                         }
                         Err(e) => {
                             // Freeze-note-documented gap this crate closes:
@@ -222,6 +238,7 @@ pub async fn run_pipeline(
                                 json!({ "extraction_method": "fallback_cu_error", "error": e.to_string() }),
                                 String::new(),
                                 None,
+                                Vec::new(),
                             )
                         }
                     }
@@ -260,14 +277,18 @@ pub async fn run_pipeline(
     // ── Stage: extract (schema-constrained GPT, markdown + page images) ─
     let extract_stage = stage_start("extract");
     let schema = structured_extraction::schema_for_key(&config.field_schema_key);
-    let extracted_json = match schema {
+    let extract_result = match schema {
         None => {
             stages.push(stage_finish(
                 extract_stage,
                 "skipped",
                 json!({ "reason": format!("no schema for '{}'", config.field_schema_key) }),
             ));
-            json!({})
+            structured_extraction::MapResult {
+                fields: json!({}),
+                generated_text: String::new(),
+                logprobs: Vec::new(),
+            }
         }
         Some(schema_json) => {
             match structured_extraction::extract_structured_fields(
@@ -279,16 +300,17 @@ pub async fn run_pipeline(
             )
             .await
             {
-                Ok(fields) => {
+                Ok(map_result) => {
                     stages.push(stage_finish(
                         extract_stage,
                         "complete",
                         json!({
-                            "field_count": fields.as_object().map(|o| o.len()).unwrap_or(0),
+                            "field_count": map_result.fields.as_object().map(|o| o.len()).unwrap_or(0),
                             "page_image_count": page_images.len(),
+                            "logprob_count": map_result.logprobs.len(),
                         }),
                     ));
-                    fields
+                    map_result
                 }
                 Err(e) => {
                     stages.push(stage_finish(
@@ -301,9 +323,24 @@ pub async fn run_pipeline(
             }
         }
     };
+    let extracted_json = extract_result.fields;
 
-    // ── Stage: validate ──────────────────────────────────────────────────
-    let validate_stage = stage_start("validate");
+    // ── Stage: evaluate ───────────────────────────────────────────────────
+    // entity_score: merged CU (line-match) + GPT (logprob) confidence, per
+    // field, averaged -- "was the text read correctly." schema_score:
+    // unchanged fraction-of-non-null-fields this pipeline always computed,
+    // kept as-is and renamed honestly (work order Step 3) rather than
+    // replaced. Every non-null field in `extracted_json` also gets a page +
+    // character-offset citation here (work order Step 2) -- same primitive,
+    // not a separate pass; see `evaluate.rs`.
+    let evaluate_stage = stage_start("evaluate");
+    let eval_result = evaluate::evaluate(
+        &extracted_json,
+        &cu_pages,
+        &extract_result.generated_text,
+        &extract_result.logprobs,
+    );
+    let total_fields = extracted_json.as_object().map(|o| o.len()).unwrap_or(0);
     let null_fields: Vec<&str> = extracted_json
         .as_object()
         .map(|o| {
@@ -313,31 +350,32 @@ pub async fn run_pipeline(
                 .collect()
         })
         .unwrap_or_default();
-    let total_fields = extracted_json.as_object().map(|o| o.len()).unwrap_or(0);
-    let confidence = if total_fields == 0 {
-        0.0
-    } else {
-        1.0 - (null_fields.len() as f64 / total_fields as f64)
-    };
-    let human_review_required = confidence < 0.7 || total_fields == 0;
+    let human_review_required =
+        eval_result.entity_score < 0.7 || eval_result.schema_score < 0.7 || total_fields == 0;
     let summary_json = json!({
         "missing_fields": null_fields,
         "total_fields": total_fields,
-        "confidence": confidence,
+        "entity_score": eval_result.entity_score,
+        "schema_score": eval_result.schema_score,
         "domain": config.domain,
         "output_kind": config.output_kind,
     });
     stages.push(stage_finish(
-        validate_stage,
+        evaluate_stage,
         "complete",
-        json!({ "confidence": confidence, "missing_field_count": null_fields.len() }),
+        json!({
+            "entity_score": eval_result.entity_score,
+            "schema_score": eval_result.schema_score,
+            "missing_field_count": null_fields.len(),
+        }),
     ));
 
     Ok(PipelineResult {
         ocr_json,
-        extracted_json,
+        extracted_json: eval_result.cited_json,
         summary_json,
-        confidence,
+        entity_score: eval_result.entity_score,
+        schema_score: eval_result.schema_score,
         human_review_required,
         stages,
     })

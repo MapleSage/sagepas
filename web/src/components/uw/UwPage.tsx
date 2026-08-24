@@ -38,14 +38,15 @@ export default function UwPage(){
   {view==='list'&&<section style={{background:D.surface,border:`1px solid ${D.border}`,borderRadius:12,overflow:'hidden'}}>
    <div style={{padding:'12px 16px',borderBottom:`1px solid ${D.border}`,fontSize:12,color:D.sub}}>{jobs.length} job{jobs.length===1?'':'s'}</div>
    <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse'}}>
-    <thead><tr style={{background:'#F7FAFC'}}>{['Job','Status','Confidence','Recommendation','Deal','Submitted'].map(x=><th key={x} style={{padding:'10px 14px',textAlign:'left',fontSize:10,color:D.sub,textTransform:'uppercase',letterSpacing:'.05em'}}>{x}</th>)}</tr></thead>
+    <thead><tr style={{background:'#F7FAFC'}}>{['Job','Status','Entity','Schema','Recommendation','Deal','Submitted'].map(x=><th key={x} style={{padding:'10px 14px',textAlign:'left',fontSize:10,color:D.sub,textTransform:'uppercase',letterSpacing:'.05em'}}>{x}</th>)}</tr></thead>
     <tbody>
-     {loading&&<tr><td colSpan={6} style={{padding:40,textAlign:'center',color:D.sub}}>Loading UW queue…</td></tr>}
-     {!loading&&jobs.length===0&&<tr><td colSpan={6} style={{padding:48,textAlign:'center',color:D.sub}}>No jobs yet.</td></tr>}
+     {loading&&<tr><td colSpan={7} style={{padding:40,textAlign:'center',color:D.sub}}>Loading UW queue…</td></tr>}
+     {!loading&&jobs.length===0&&<tr><td colSpan={7} style={{padding:48,textAlign:'center',color:D.sub}}>No jobs yet.</td></tr>}
      {jobs.map(j=><tr key={j.job_id} onClick={()=>openTrace(j.job_id)} style={{borderTop:`1px solid ${D.border}`,cursor:'pointer'}}>
       <td style={{padding:'12px 14px',fontSize:13,color:D.text}}>{j.job_id}</td>
       <td style={{padding:'12px 14px'}}>{badge(j.status)}</td>
       <td style={{padding:'12px 14px',fontSize:13,color:D.sub}}>{j.confidence!=null?`${Math.round(j.confidence*100)}%`:'—'}</td>
+      <td style={{padding:'12px 14px',fontSize:13,color:D.sub}}>{j.schema_score!=null?`${Math.round(j.schema_score*100)}%`:'—'}</td>
       <td style={{padding:'12px 14px'}}>{recBadge(j.recommendation)}</td>
       <td style={{padding:'12px 14px',fontSize:12,color:D.sub}}>{j.deal_id||'—'}</td>
       <td style={{padding:'12px 14px',fontSize:12,color:D.sub}}>{j.created_at?new Date(j.created_at).toLocaleString():'—'}</td>
@@ -89,7 +90,8 @@ function UwUploadForm({onDone}:{onDone:()=>void}){
  if(result)return <Section title="Uploaded">
   <div style={{fontSize:13,color:D.text}}>Job ID: <strong>{result.job_id}</strong></div>
   <div style={{fontSize:13,color:D.text}}>Status: {badge(result.status)}</div>
-  <div style={{fontSize:13,color:D.text}}>Confidence: {Math.round(result.confidence*100)}%</div>
+  <div style={{fontSize:13,color:D.text}}>Entity score: {Math.round(result.confidence*100)}%</div>
+  <div style={{fontSize:13,color:D.text}}>Schema score: {Math.round(result.schema_score*100)}%</div>
   <button style={button(D.orange)} onClick={onDone}>Back to queue</button>
  </Section>
 
@@ -113,7 +115,8 @@ function UwTraceView({trace,jobId}:{trace:any;jobId:string}){
    <div>{badge(trace.status)}</div>
    <div>{recBadge(trace.recommendation)}</div>
    <div style={{fontSize:13,color:D.text}}>Deal: {trace.deal_id||'—'}</div>
-   <div style={{fontSize:13,color:D.text}}>Confidence: {trace.confidence!=null?`${Math.round(trace.confidence*100)}%`:'—'}</div>
+   <div style={{fontSize:13,color:D.text}}>Entity score: {trace.confidence!=null?`${Math.round(trace.confidence*100)}%`:'—'}</div>
+   <div style={{fontSize:13,color:D.text}}>Schema score: {trace.schema_score!=null?`${Math.round(trace.schema_score*100)}%`:'—'}</div>
   </Section>
   <Section title="Pipeline stages">
    {stages.length===0&&<div style={{color:D.sub,fontSize:12}}>No stage data recorded.</div>}

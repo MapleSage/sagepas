@@ -109,4 +109,95 @@ impl OpenAIClient {
             "usage": raw.get("usage").cloned().unwrap_or(Value::Null),
         }))
     }
+
+    /// Like `chat_completion`, but requests per-token logprobs and returns
+    /// them alongside the text -- `chat_completion`'s translated shape
+    /// throws logprobs away entirely, and the Evaluate stage's GPT-side
+    /// confidence (`doc_pipeline::structured_extraction`) needs them.
+    ///
+    /// Only non-reasoning deployments support this -- confirmed live against
+    /// this same Azure OpenAI resource: `gpt-5.6-luna` (reasoning) rejects
+    /// `include: [message.output_text.logprobs]` outright ("logprobs are
+    /// not supported with reasoning models"); `gpt-4.1` on the identical
+    /// resource returns real per-token logprobs. Callers must pass a model
+    /// name that supports it (this client does not validate that itself --
+    /// pushing that check here would mean hardcoding a model allowlist that
+    /// belongs in the caller's domain knowledge, not the transport client).
+    pub async fn chat_completion_with_logprobs(
+        &self,
+        messages: &[Value],
+        model: &str,
+        top_logprobs: u32,
+        max_tokens: Option<u32>,
+    ) -> Result<(String, Vec<Value>), OpenAIError> {
+        let url = format!(
+            "{}/openai/v1/responses",
+            self.endpoint.trim_end_matches('/')
+        );
+
+        let mut body = json!({
+            "model": model,
+            "input": messages,
+            "include": ["message.output_text.logprobs"],
+            "top_logprobs": top_logprobs,
+        });
+
+        if let Some(max) = max_tokens {
+            body["max_output_tokens"] = json!(max);
+        }
+
+        let resp = self
+            .http
+            .post(&url)
+            .header("api-key", &self.api_key)
+            .json(&body)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            return Err(OpenAIError::ApiError(format!("HTTP {}: {}", status, text)));
+        }
+
+        let raw: Value = resp.json().await?;
+
+        if let Some(err) = raw.get("error").filter(|e| !e.is_null()) {
+            return Err(OpenAIError::ApiError(err.to_string()));
+        }
+
+        let message_item = raw
+            .get("output")
+            .and_then(|v| v.as_array())
+            .and_then(|items| {
+                items
+                    .iter()
+                    .find(|item| item.get("type").and_then(|t| t.as_str()) == Some("message"))
+            })
+            .ok_or_else(|| OpenAIError::ApiError(format!("no message item in response: {raw}")))?;
+
+        let output_text_content = message_item
+            .get("content")
+            .and_then(|v| v.as_array())
+            .and_then(|contents| {
+                contents
+                    .iter()
+                    .find(|c| c.get("type").and_then(|t| t.as_str()) == Some("output_text"))
+            })
+            .ok_or_else(|| OpenAIError::ApiError(format!("no output_text in response: {raw}")))?;
+
+        let text = output_text_content
+            .get("text")
+            .and_then(|t| t.as_str())
+            .ok_or_else(|| OpenAIError::ApiError(format!("output_text has no text: {raw}")))?
+            .to_string();
+
+        let logprobs = output_text_content
+            .get("logprobs")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+
+        Ok((text, logprobs))
+    }
 }
