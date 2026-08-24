@@ -4,6 +4,7 @@
 //! original Pydantic classes (see sagesure-us's own copy for full
 //! provenance), not hand-written.
 
+use base64::Engine;
 use infra::openai::OpenAIClient;
 use serde_json::{Value, json};
 use thiserror::Error;
@@ -48,12 +49,21 @@ fn safe_truncate(s: &str, max_bytes: usize) -> &str {
 }
 
 /// Calls GPT with the real field schema injected into the system prompt,
-/// forcing schema-constrained structured output.
+/// forcing schema-constrained structured output. `page_images` are raw PNG
+/// (or the original image bytes for a direct image upload) -- reference
+/// parity requires these reach the model, not just CU's markdown text: the
+/// FNOL accelerator's Map step (`map_handler.py`) explicitly rasterizes
+/// every PDF page via `pdf2image` and attaches each one as an image part
+/// alongside the markdown, on the reasoning that CU's OCR text and GPT's
+/// own reading of the page image are two independent signals worth cross-
+/// checking (see the Evaluate stage, which merges their confidences) -- a
+/// text-only call can't produce the second one.
 pub async fn extract_structured_fields(
     openai: &OpenAIClient,
     markdown: &str,
     cu_fields: Option<&Value>,
     schema_json: &str,
+    page_images: &[Vec<u8>],
 ) -> Result<Value, StructuredExtractionError> {
     let schema_value: Value = serde_json::from_str(schema_json)
         .map_err(|e| StructuredExtractionError::InvalidJson(format!("embedded schema: {e}")))?;
@@ -67,19 +77,36 @@ pub async fn extract_structured_fields(
     let system_prompt = format!(
         r#"You are an AI assistant that extracts data from insurance documents.
 You must ALWAYS return valid JSON matching the schema below — never return plain text.
-If a field value cannot be determined from the document, set it to null.
+If a field value cannot be determined from the document or image, set it to null.
 You must return ONLY valid JSON that matches this exact schema:
 {schema_compact}"#
     );
 
-    let user_content = format!(
-        "Document content (markdown):\n{markdown_snippet}\n\nAdditional extracted fields (if any):\n{cu_fields_str}"
-    );
+    let text_part = json!({
+        "type": "input_text",
+        "text": format!(
+            "Document content (markdown):\n{markdown_snippet}\n\nAdditional extracted fields (if any):\n{cu_fields_str}"
+        ),
+    });
+
+    let mut user_content: Vec<Value> = vec![text_part];
+    for image_bytes in page_images {
+        let encoded = base64::engine::general_purpose::STANDARD.encode(image_bytes.as_slice());
+        user_content.push(json!({
+            "type": "input_image",
+            "image_url": format!("data:image/png;base64,{encoded}"),
+        }));
+    }
 
     let messages = vec![
         json!({"role": "system", "content": system_prompt}),
         json!({"role": "user", "content": user_content}),
     ];
+
+    tracing::info!(
+        page_image_count = page_images.len(),
+        "sending page images to GPT extraction (reference-parity Map stage)"
+    );
 
     let response = openai
         .chat_completion(&messages, "", Some(0.1), Some(4096))

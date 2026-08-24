@@ -19,6 +19,7 @@
 
 pub mod content_understanding;
 pub mod kb_scoring;
+pub mod pdf_render;
 pub mod structured_extraction;
 
 use content_understanding::{ContentUnderstandingClient, acquire_cu_token, select_analyzer};
@@ -229,7 +230,34 @@ pub async fn run_pipeline(
         }
     };
 
-    // ── Stage: extract (schema-constrained GPT) ─────────────────────────
+    // ── Stage: page images (rasterize PDF pages / pass through a direct
+    // image upload) ─────────────────────────────────────────────────────
+    // Reference parity (`map_handler.py`): the Map step's input is schema +
+    // page images + markdown, not markdown alone. A PDF never carries page
+    // images in CU's own response, so this has to be produced independently
+    // -- see `pdf_render.rs` for why that's a `pdftoppm` shell-out rather
+    // than a CU feature.
+    let is_pdf = content_type.eq_ignore_ascii_case("application/pdf");
+    let is_direct_image = matches!(
+        content_type.to_ascii_lowercase().as_str(),
+        "image/png" | "image/jpeg" | "image/jpg" | "image/bmp" | "image/gif" | "image/tiff"
+            | "image/webp"
+    );
+    let page_images: Vec<Vec<u8>> = if is_pdf {
+        match pdf_render::render_pdf_pages_to_png(file_bytes).await {
+            Ok(pages) => pages,
+            Err(e) => {
+                tracing::warn!(error = %e, "PDF page rasterization failed, extraction proceeds on markdown/CU-fields text only");
+                Vec::new()
+            }
+        }
+    } else if is_direct_image {
+        vec![file_bytes.to_vec()]
+    } else {
+        Vec::new()
+    };
+
+    // ── Stage: extract (schema-constrained GPT, markdown + page images) ─
     let extract_stage = stage_start("extract");
     let schema = structured_extraction::schema_for_key(&config.field_schema_key);
     let extracted_json = match schema {
@@ -247,6 +275,7 @@ pub async fn run_pipeline(
                 &markdown,
                 cu_fields.as_ref(),
                 schema_json,
+                &page_images,
             )
             .await
             {
@@ -254,7 +283,10 @@ pub async fn run_pipeline(
                     stages.push(stage_finish(
                         extract_stage,
                         "complete",
-                        json!({ "field_count": fields.as_object().map(|o| o.len()).unwrap_or(0) }),
+                        json!({
+                            "field_count": fields.as_object().map(|o| o.len()).unwrap_or(0),
+                            "page_image_count": page_images.len(),
+                        }),
                     ));
                     fields
                 }
@@ -262,7 +294,7 @@ pub async fn run_pipeline(
                     stages.push(stage_finish(
                         extract_stage,
                         "failed",
-                        json!({ "error": e.to_string() }),
+                        json!({ "error": e.to_string(), "page_image_count": page_images.len() }),
                     ));
                     return Err(PipelineError::ExtractionFailed(e));
                 }

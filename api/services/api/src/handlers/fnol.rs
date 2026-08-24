@@ -106,6 +106,25 @@ pub async fn submit(
     .await
     .map_err(internal)?;
 
+    // Ingest event -- owned here, at the point of ingest, not tacked onto
+    // the Save-stage write below. `occurred_at` is the domain event's own
+    // timestamp; conflating it with when the pipeline happened to finish
+    // writing is the ownership bug that produced the NOT NULL violation
+    // this insert used to hit (see CLAUDE.md's failure log discipline: fix
+    // the ownership, not just the column).
+    sqlx::query(
+        r#"
+        INSERT INTO fnol_events (event_type, process_id, occurred_at, payload)
+        VALUES ('fnol.submitted', $1, $2, $3)
+        "#,
+    )
+    .bind(process_id)
+    .bind(chrono::Utc::now())
+    .bind(serde_json::json!({ "original_filename": original_filename, "mime_type": mime_type }))
+    .execute(&**state.db)
+    .await
+    .map_err(internal)?;
+
     let config = PipelineConfig {
         domain: Domain::Fnol,
         field_schema_key: insurance_type.clone(),
@@ -207,13 +226,16 @@ pub async fn submit(
     .await
     .map_err(internal)?;
 
+    // Save-stage event, distinct from Ingest's 'fnol.submitted' above --
+    // its own name, its own occurred_at, not borrowing Ingest's.
     sqlx::query(
         r#"
-        INSERT INTO fnol_events (event_type, process_id, payload)
-        VALUES ('fnol.submitted', $1, $2)
+        INSERT INTO fnol_events (event_type, process_id, occurred_at, payload)
+        VALUES ('fnol.completed', $1, $2, $3)
         "#,
     )
     .bind(process_id)
+    .bind(chrono::Utc::now())
     .bind(serde_json::json!({ "ticket_id": ticket_id, "confidence": result.confidence }))
     .execute(&**state.db)
     .await

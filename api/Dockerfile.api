@@ -5,7 +5,11 @@ COPY . .
 RUN cargo build --release -p api
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates \
+# poppler-utils provides pdftoppm, used by doc-pipeline::pdf_render to
+# rasterize PDF pages for GPT vision -- reference parity with the FNOL
+# accelerator's map_handler.py, which does the same via pdf2image (itself a
+# poppler wrapper).
+RUN apt-get update && apt-get install -y ca-certificates poppler-utils \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --system --gid 10001 sagepas \
  && useradd --system --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin sagepas
