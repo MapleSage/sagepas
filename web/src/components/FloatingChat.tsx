@@ -10,6 +10,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { pasApi } from '../api/client'
+import { useActiveRecord } from '../context/ActiveRecordContext'
 
 interface Msg { role: 'user' | 'ai'; text: string }
 
@@ -59,6 +60,7 @@ function MarkdownText({ text, dark }: { text: string; dark?: boolean }) {
 const DEFAULT_SYSTEM_PROMPT = 'You are SageGIA, the SageSure AI assistant for the agent and policy administration workspace. Be concise and helpful, and use markdown headings/bullets where useful.'
 
 export function FloatingChat({ activeTab }: { activeTab: string }) {
+  const activeRecord = useActiveRecord()
   const [open, setOpen] = useState(false)
   const [msgsByTab, setMsgsByTab] = useState<Record<string, Msg[]>>({})
   const [input, setInput] = useState('')
@@ -116,6 +118,10 @@ export function FloatingChat({ activeTab }: { activeTab: string }) {
         tab: activeTab,
         history,
         system_prompt: DEFAULT_SYSTEM_PROMPT,
+        // Only attached when the open tab matches the record's own surface
+        // -- e.g. don't send a stale FNOL record_id if the user has since
+        // navigated to Quotes but activeRecord hasn't unmounted yet.
+        record_id: activeRecord?.surface === activeTab ? activeRecord.recordId : undefined,
       })
       const reply = data?.reply ?? data?.response ?? data?.text ?? 'Sorry, something went wrong.'
       appendMsg(activeTab, { role: 'ai', text: reply })
@@ -150,7 +156,7 @@ export function FloatingChat({ activeTab }: { activeTab: string }) {
                 SageGIA · AI Assistant
               </div>
               <div style={{ color: '#93c5fd', fontSize: 11, marginTop: 3 }}>
-                SagePAS
+                {activeRecord?.surface === activeTab ? `Reading ${activeRecord.surface.toUpperCase()} record ${activeRecord.recordId}` : 'SagePAS'}
               </div>
             </div>
             <button

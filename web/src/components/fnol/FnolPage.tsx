@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { messageOf, pasApi } from '../../api/client'
 import DocumentViewer, { type DocumentViewerHandle } from '../shared/DocumentViewer'
 import CitedFieldTree from '../shared/CitedFieldTree'
+import { useSetActiveRecord } from '../../context/ActiveRecordContext'
 
 const D={surface:'#fff',border:'#D6E5F1',text:'#173042',sub:'#5F778C',bg:'#EEF6FB',teal:'#3D9CA2',orange:'#F7761F',green:'#0FA372',red:'#E25555',amber:'#F3A52E'}
 const inp:React.CSSProperties={width:'100%',boxSizing:'border-box',padding:'8px 11px',borderRadius:7,border:`1px solid ${D.border}`,fontSize:13,color:D.text,background:'#fff'}
@@ -106,6 +107,7 @@ function FnolSubmitForm({onDone}:{onDone:()=>void}){
 }
 
 function FnolTraceView({trace,processId}:{trace:any;processId:string}){
+ useSetActiveRecord('fnol',processId)
  const viewerRef=useRef<DocumentViewerHandle>(null)
  const fetchBlob=useCallback(()=>pasApi.fnolDocument(processId),[processId])
  const jump=(page:number)=>viewerRef.current?.jumpToPage(page)

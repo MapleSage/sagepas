@@ -3,18 +3,28 @@
 //! which sagepas had no equivalent of at all (confirmed by grep: zero
 //! references anywhere, backend or frontend, before this).
 //!
-//! Strictly conversation memory (chat history + regex-extracted facts from
-//! past conversation text) -- it does not query live platform data (quotes/
-//! policies/claims tables). That's a real, separate gap from "GIA doesn't
-//! exist here yet," not something this port closes.
+//! Conversation memory (chat history + regex-extracted facts) plus, as of
+//! work order §11, live per-record context via `context_providers` -- the
+//! "does not query live platform data" gap this module's comment used to
+//! name is now closed for the surfaces that have a provider (FNOL, UW).
+//! Every fact a provider supplies is traceable to the record it read
+//! (§11.2); authorization for *that record* is decided inside the provider
+//! against the caller's own validated role, never assumed from the
+//! request having reached this handler at all (§11.3).
 //!
 //! Adapted for sagepas's own clients: `state.openai_client` (the ported
 //! `OpenAIClient`, Responses-API shaped) instead of manually building an
 //! Azure OpenAI URL, and `state.search` for KB retrieval instead of a
-//! hand-rolled search call. Anonymous callers are supported deliberately --
-//! `extract_optional_user_id` degrades to stateless chat rather than 401ing,
-//! matching the B2C "no registration wall" pattern already established for
-//! the prospect-quote flow.
+//! hand-rolled search call.
+//!
+//! `/chat` is auth-required, not anonymous (work order §12.2, held as of
+//! 2026-08-25): an anonymous LLM-backed endpoint needs per-IP rate
+//! limiting, a per-session token ceiling, and a spend cap demonstrated
+//! failing closed, none of which exist yet -- this operation has a real
+//! prior $38k/4B-token runaway-inference incident, so this is a cost
+//! decision, not a security one. `/memory` and `/history` stay
+//! auth-required regardless (they're inherently identity-scoped: "my saved
+//! facts" has no anonymous meaning).
 
 use axum::{
     Json,
@@ -28,6 +38,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
+use crate::auth_extract::AuthUser;
+use crate::context_providers;
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -47,6 +59,11 @@ pub struct ChatRequest {
     pub tab: String,
     #[serde(default)]
     pub workflow_id: Option<String>,
+    /// The record currently open on `tab` (e.g. an FNOL process_id, a UW
+    /// job_id) -- work order §11.1. Absent means no page-scoped context;
+    /// GIA still answers from KB + conversation memory as before.
+    #[serde(default)]
+    pub record_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -90,8 +107,15 @@ fn unauthorized_response() -> Response {
 }
 
 /// POST /api/v1/connect/chat
+///
+/// Still auth-required (work order §12.2, held: this path does not open to
+/// anonymous callers until per-IP rate limiting, a per-session token
+/// ceiling, and a spend cap demonstrated failing closed all exist -- this
+/// operation has a real prior $38k/4B-token runaway-inference incident).
+/// `AuthUser` is therefore a required extractor here, not optional.
 pub async fn chat(
     State(state): State<AppState>,
+    AuthUser(auth_user): AuthUser,
     headers: HeaderMap,
     Json(body): Json<ChatRequest>,
 ) -> Json<ChatResponse> {
@@ -101,7 +125,7 @@ pub async fn chat(
         });
     }
 
-    let user_id = extract_optional_user_id(&headers, &state).await;
+    let user_id = Uuid::parse_str(&auth_user.oid).ok();
     let surface = headers
         .get("X-Surface")
         .and_then(|v| v.to_str().ok())
@@ -148,6 +172,28 @@ pub async fn chat(
     } else {
         format!("{}{}", body.system_prompt, kb_context)
     };
+
+    // Work order §11.1/§11.3: record context is per-surface and
+    // authorization-gated in the provider itself, not implied here by "a
+    // record_id was supplied." No provider for this surface, no record_id,
+    // record not found, or the caller's role isn't allowed -- all result in
+    // no context attached, silently, never an error that breaks the chat.
+    if let Some(record_id) = body.record_id.as_deref() {
+        if let Some(provider) = context_providers::provider_for(&surface) {
+            match provider.describe(&state, &auth_user, record_id).await {
+                Ok(ctx) => system = format!("{}{}", system, ctx.to_prompt_block()),
+                Err(context_providers::ContextError::Forbidden) => {
+                    tracing::info!(%surface, %record_id, oid = %auth_user.oid, "GIA context denied: caller role not permitted for this surface");
+                }
+                Err(context_providers::ContextError::NotFound) => {
+                    tracing::warn!(%surface, %record_id, "GIA context: record not found");
+                }
+                Err(context_providers::ContextError::Internal(e)) => {
+                    tracing::error!(%surface, %record_id, error = %e, "GIA context provider failed");
+                }
+            }
+        }
+    }
 
     let mut memory_messages: Option<Vec<serde_json::Value>> = None;
     let mut memory_session_id: Option<Uuid> = None;

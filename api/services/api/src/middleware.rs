@@ -30,43 +30,33 @@ fn is_public_path(path: &str, dev_local_auth_enabled: bool) -> bool {
         // order item 2) -- capture at intent (a real premium exists to
         // save), not at entry. Rate-limited at the handler, not here.
         || path == "/api/v1/quotes/prospect"
+        // NOTE (work order §12.2, HELD 2026-08-25): connect.rs's own doc
+        // comment claims GIA chat is anonymous-capable, but this global
+        // middleware 401s any unauthenticated call before that handler
+        // logic ever runs -- so it's currently dead code. Opening
+        // /api/v1/connect/chat here is explicitly NOT approved yet: an
+        // anonymous LLM-backed endpoint needs per-IP rate limiting,
+        // per-session token ceilings, and a spend cap demonstrated failing
+        // closed first (cost objection, not security -- this operation has
+        // a real prior $38k/4B-token runaway inference incident). Do not
+        // add this path here until all three are built and the cap has
+        // been driven past its limit and shown to refuse.
         || dev_auth_path
 }
 
-/// Axum middleware that validates the caller's identity on every request
-/// except public paths (health check and local-dev auth bootstrap).
-///
-/// Two token types are accepted:
-/// - RS256: a Microsoft Entra ID access token, verified cryptographically
-///   against the tenant's JWKS (issuer, audience, expiry, tenant all checked).
-/// - HS256: the local dev-only token, only ever accepted when
-///   `dev_local_auth_enabled` is explicitly set — production auth is
-///   Entra-only.
-///
-/// Attached via `axum::middleware::from_fn_with_state`.
-pub async fn require_auth(
-    State(state): State<AppState>,
-    mut req: Request,
-    next: Next,
-) -> Result<Response, (StatusCode, String)> {
-    let path = req.uri().path().to_string();
-
-    // Public routes — no auth required.
-    if is_public_path(&path, state.config.dev_local_auth_enabled) {
-        return Ok(next.run(req).await);
-    }
-
-    // Extract the Authorization: Bearer <token> header.
-    let auth_header = req
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| {
-            (
-                StatusCode::UNAUTHORIZED,
-                "missing Authorization header".to_string(),
-            )
-        })?;
+/// Validates a Bearer token if one is present. Returns `Ok(None)` -- not an
+/// error -- when there's simply no Authorization header, so a lenient
+/// (public) path can proceed anonymous instead of 401ing. A *malformed or
+/// invalid* token is still a hard error even on a lenient path; "no token"
+/// and "bad token" are different things and only the first is tolerated
+/// here. Work order §12.1.
+async fn try_validate(
+    headers: &axum::http::HeaderMap,
+    state: &AppState,
+) -> Result<Option<AuthenticatedUser>, (StatusCode, String)> {
+    let Some(auth_header) = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()) else {
+        return Ok(None);
+    };
 
     let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
         (
@@ -136,6 +126,43 @@ pub async fn require_auth(
             ));
         }
     };
+
+    Ok(Some(user))
+}
+
+/// Axum middleware that validates the caller's identity on every request.
+/// On a public path (see `is_public_path`): no token proceeds anonymous
+/// (unchanged behavior), a *valid* token attaches the caller's identity
+/// anyway (new, work order §12.1 -- e.g. so a signed-in staff member gets
+/// role-scoped context on an otherwise-anonymous-capable path), and a
+/// malformed/invalid token still hard-fails either way. Every other path
+/// requires a valid token, as before.
+///
+/// Two token types are accepted:
+/// - RS256: a Microsoft Entra ID access token, verified cryptographically
+///   against the tenant's JWKS (issuer, audience, expiry, tenant all checked).
+/// - HS256: the local dev-only token, only ever accepted when
+///   `dev_local_auth_enabled` is explicitly set — production auth is
+///   Entra-only.
+///
+/// Attached via `axum::middleware::from_fn_with_state`.
+pub async fn require_auth(
+    State(state): State<AppState>,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, (StatusCode, String)> {
+    let path = req.uri().path().to_string();
+
+    if is_public_path(&path, state.config.dev_local_auth_enabled) {
+        if let Some(user) = try_validate(req.headers(), &state).await? {
+            req.extensions_mut().insert(user);
+        }
+        return Ok(next.run(req).await);
+    }
+
+    let user = try_validate(req.headers(), &state)
+        .await?
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "missing Authorization header".to_string()))?;
 
     // Attach the validated identity to request extensions for handlers to read.
     req.extensions_mut().insert(user);

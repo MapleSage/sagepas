@@ -23,6 +23,7 @@ import ReportsPage from './components/reports/ReportsPage'
 import FnolPage from './components/fnol/FnolPage'
 import UwPage from './components/uw/UwPage'
 import { FloatingChat } from './components/FloatingChat'
+import { ActiveRecordProvider } from './context/ActiveRecordContext'
 import { pasApi } from './api/client'
 import { D } from './theme'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
@@ -511,7 +512,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <FluentProvider theme={sageSureTheme}>
         <AuthProvider>
-          <AppContent />
+          <ActiveRecordProvider>
+            <AppContent />
+          </ActiveRecordProvider>
         </AuthProvider>
       </FluentProvider>
     </QueryClientProvider>

@@ -24,6 +24,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::{error, info, warn};
 
 mod auth_extract;
+mod context_providers;
 mod handlers;
 mod hubspot_bridge;
 mod middleware;
