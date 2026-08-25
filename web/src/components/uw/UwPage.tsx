@@ -101,7 +101,7 @@ function UwUploadForm({onDone}:{onDone:()=>void}){
  return <form onSubmit={submit} style={{maxWidth:520}}><Section title="Submission document">
   {error&&<div style={{background:'#FFF1F1',color:'#9B2C2C',padding:10,borderRadius:7,fontSize:12}}>{error}</div>}
   <Field label="Document (photo, scan, or PDF)"><input type="file" accept=".pdf,.png,.jpg,.jpeg,.bmp,.gif,.tiff,.webp" onChange={e=>setFile(e.target.files?.[0]||null)} required/></Field>
-  <Field label="Insurance type"><select style={inp} value={insuranceType} onChange={e=>setInsuranceType(e.target.value)}><option value="auto">Auto</option><option value="property">Property</option><option value="life">Life</option><option value="health">Health</option><option value="marine">Marine</option></select></Field>
+  <Field label="Insurance type"><select style={inp} value={insuranceType} onChange={e=>setInsuranceType(e.target.value)}><option value="auto">Auto</option><option value="property">Property / P&amp;C</option><option value="life">Life</option><option value="health">Health</option><option value="marine">Marine</option></select></Field>
   <Field label="Applicant email"><input style={inp} type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></Field>
   <Field label="Applicant name"><input style={inp} value={name} onChange={e=>setName(e.target.value)} required/></Field>
   <Field label="Applicant phone"><input style={inp} value={phone} onChange={e=>setPhone(e.target.value)} required/></Field>
