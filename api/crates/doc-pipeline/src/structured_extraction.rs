@@ -9,9 +9,12 @@ use infra::openai::OpenAIClient;
 use serde_json::{Value, json};
 use thiserror::Error;
 
+use crate::Domain;
+
 const LIFE_INSURANCE_SCHEMA: &str = include_str!("../schemas/life_insurance.json");
 const HEALTH_INSURANCE_SCHEMA: &str = include_str!("../schemas/health_insurance.json");
 const PROPERTY_CLAIM_SCHEMA: &str = include_str!("../schemas/property_claim.json");
+const PROPERTY_UW_SCHEMA: &str = include_str!("../schemas/property_uw_submission.json");
 const AUTO_FNOL_SCHEMA: &str = include_str!("../schemas/auto_fnol.json");
 const MARINE_CARGO_FNOL_SCHEMA: &str = include_str!("../schemas/marine_cargo_fnol.json");
 
@@ -26,11 +29,29 @@ pub enum StructuredExtractionError {
 }
 
 /// Maps a coarse line-of-business key to the matching real schema.
-pub fn schema_for_key(key: &str) -> Option<&'static str> {
+/// Domain-aware for "property"/"home" specifically: a FNOL submission is a
+/// claim against an existing policy (loss/damage details --
+/// `PropertyLossDamageClaimForm`), an underwriting submission is a
+/// prospective risk being proposed for coverage (applicant, coverages
+/// requested, per-location construction/occupancy/protection detail --
+/// `CommercialPropertyUwSubmission`, ported from a real commercial property
+/// application, not a generically-imagined one). Using the claims schema
+/// for a UW upload produced a mostly-null extraction against a genuine
+/// underwriting document -- confirmed live, not assumed. Other lines
+/// (life/health/auto/marine) share one schema across both domains for
+/// now; life_insurance.json's actual fields turned out UW-submission-
+/// relevant despite its "claim or policy document" naming (verified
+/// against a real life_submission.pdf), auto_fnol/marine_cargo_fnol are
+/// named FNOL-only and may have the same gap property did -- not
+/// confirmed either way, flagged rather than assumed fixed.
+pub fn schema_for_key(domain: Domain, key: &str) -> Option<&'static str> {
     match key {
         "life" => Some(LIFE_INSURANCE_SCHEMA),
         "health" => Some(HEALTH_INSURANCE_SCHEMA),
-        "property" | "home" => Some(PROPERTY_CLAIM_SCHEMA),
+        "property" | "home" => Some(match domain {
+            Domain::Underwriting => PROPERTY_UW_SCHEMA,
+            Domain::Fnol => PROPERTY_CLAIM_SCHEMA,
+        }),
         "auto" | "motor" => Some(AUTO_FNOL_SCHEMA),
         "marine" => Some(MARINE_CARGO_FNOL_SCHEMA),
         _ => None,

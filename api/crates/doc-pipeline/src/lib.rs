@@ -283,7 +283,7 @@ pub async fn run_pipeline(
 
     // ── Stage: extract (schema-constrained GPT, markdown + page images) ─
     let extract_stage = stage_start("extract");
-    let schema = structured_extraction::schema_for_key(&config.field_schema_key);
+    let schema = structured_extraction::schema_for_key(config.domain, &config.field_schema_key);
     let extract_result = match schema {
         None => {
             stages.push(stage_finish(

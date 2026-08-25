@@ -1,0 +1,139 @@
+{
+  "$defs": {
+    "Address": {
+      "description": "A class representing an address.",
+      "properties": {
+        "street": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "Street address, e.g. 546 Gulf Ave", "title": "Street"},
+        "city": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "City, e.g. Staten Island", "title": "City"},
+        "state": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "State, e.g. NY", "title": "State"},
+        "postal_code": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "Postal code, e.g. 10314", "title": "Postal Code"},
+        "phone": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "Phone number at this address", "title": "Phone"}
+      },
+      "title": "Address",
+      "type": "object"
+    },
+    "AgencyInfo": {
+      "description": "Submitting agency and underwriter routing information.",
+      "properties": {
+        "agency_name": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "e.g. A&R Agency", "title": "Agency Name"},
+        "division": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "e.g. New York Division", "title": "Division"},
+        "agent_name": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Agent Name"},
+        "agent_phone": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Agent Phone"},
+        "agent_email": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Agent Email"},
+        "submitted_to": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "Carrier the submission is going to", "title": "Submitted To"},
+        "underwriter": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Underwriter"},
+        "transaction_type": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "Quote, Bind, or Renewal", "title": "Transaction Type"},
+        "submission_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "ISO 8601 date", "title": "Submission Date"}
+      },
+      "title": "AgencyInfo",
+      "type": "object"
+    },
+    "CoveragesRequested": {
+      "description": "Which lines of coverage this submission is requesting, per the application's checklist.",
+      "properties": {
+        "commercial_property": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Commercial Property"},
+        "water_damage": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Water Damage"},
+        "flood": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Flood"},
+        "business_interruption": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Business Interruption"},
+        "crime": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Crime"},
+        "boiler_and_machinery": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Boiler And Machinery"}
+      },
+      "title": "CoveragesRequested",
+      "type": "object"
+    },
+    "Applicant": {
+      "description": "The business applying for coverage.",
+      "properties": {
+        "business_name": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Business Name"},
+        "address": {"anyOf": [{"$ref": "#/$defs/Address"}, {"type": "null"}]},
+        "website": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Website"},
+        "business_type": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "Corporation, LLC, Partnership, Subchapter S, Sole proprietorship", "title": "Business Type"},
+        "primary_naic_code": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Primary Naic Code"},
+        "approximate_annual_revenue": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "As stated on the application, currency string", "title": "Approximate Annual Revenue"},
+        "contact_name": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Contact Name"},
+        "contact_title": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Contact Title"},
+        "contact_phone": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Contact Phone"},
+        "contact_email": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Contact Email"}
+      },
+      "title": "Applicant",
+      "type": "object"
+    },
+    "Exposures": {
+      "description": "Adjacent exposures on each side of the building, looking toward the front.",
+      "properties": {
+        "left_description": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Left Description"},
+        "left_distance_ft": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Left Distance Ft"},
+        "right_description": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Right Description"},
+        "right_distance_ft": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Right Distance Ft"},
+        "rear_description": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Rear Description"},
+        "rear_distance_ft": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Rear Distance Ft"},
+        "front_description": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Front Description"},
+        "front_distance_ft": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Front Distance Ft"}
+      },
+      "title": "Exposures",
+      "type": "object"
+    },
+    "AlarmsAndProtection": {
+      "properties": {
+        "sprinkler_present": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Sprinkler Present"},
+        "sprinkler_coverage_pct": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Sprinkler Coverage Pct"},
+        "standpipes_present": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Standpipes Present"},
+        "standpipes_count": {"anyOf": [{"type": "integer"}, {"type": "null"}], "title": "Standpipes Count"},
+        "fire_alarm_present": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Fire Alarm Present"},
+        "central_station_present": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Central Station Present"}
+      },
+      "title": "AlarmsAndProtection",
+      "type": "object"
+    },
+    "Location": {
+      "description": "One insured location on a (possibly multi-location) commercial property submission.",
+      "properties": {
+        "location_number": {"anyOf": [{"type": "integer"}, {"type": "null"}], "title": "Location Number"},
+        "address": {"anyOf": [{"$ref": "#/$defs/Address"}, {"type": "null"}]},
+        "building_owner": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Building Owner"},
+        "employee_count": {"anyOf": [{"type": "integer"}, {"type": "null"}], "title": "Employee Count"},
+        "total_sq_ft": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Total Sq Ft"},
+        "applicant_occupied_sq_ft": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Applicant Occupied Sq Ft"},
+        "non_applicant_occupied_sq_ft": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Non Applicant Occupied Sq Ft"},
+        "public_area_sq_ft": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Public Area Sq Ft"},
+        "operations_description": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "What happens at this location, e.g. warehouse for cleaning chemicals", "title": "Operations Description"},
+        "building_coverage_amount": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Building Coverage Amount"},
+        "personal_property_coverage_amount": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Personal Property Coverage Amount"},
+        "coinsurance_pct": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Coinsurance Pct"},
+        "valuation_basis": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "RC (replacement cost) or ACV (actual cash value)", "title": "Valuation Basis"},
+        "coverage_form_type": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "special, broad, or basic", "title": "Coverage Form Type"},
+        "deductible": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Deductible"},
+        "inflation_guard_pct": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Inflation Guard Pct"},
+        "iso_class": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Iso Class"},
+        "construction_type": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "e.g. joisted masonry, wood, metal frame", "title": "Construction Type"},
+        "year_built": {"anyOf": [{"type": "integer"}, {"type": "null"}], "title": "Year Built"},
+        "stories_above_ground": {"anyOf": [{"type": "integer"}, {"type": "null"}], "title": "Stories Above Ground"},
+        "has_basement": {"anyOf": [{"type": "boolean"}, {"type": "null"}], "title": "Has Basement"},
+        "distance_to_fire_hydrant_ft": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Distance To Fire Hydrant Ft"},
+        "distance_to_fire_station_miles": {"anyOf": [{"type": "number"}, {"type": "null"}], "title": "Distance To Fire Station Miles"},
+        "protection_class": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "ISO protection class, 1-9 (10 = unprotected)", "title": "Protection Class"},
+        "primary_occupancy_type": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Primary Occupancy Type"},
+        "other_occupant_types": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Other Occupant Types"},
+        "roof_type": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Roof Type"},
+        "primary_heat_type": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "e.g. steam boiler, GHA, oil", "title": "Primary Heat Type"},
+        "wiring_age_years": {"anyOf": [{"type": "integer"}, {"type": "null"}], "title": "Wiring Age Years"},
+        "exposures": {"anyOf": [{"$ref": "#/$defs/Exposures"}, {"type": "null"}]},
+        "alarms_and_protection": {"anyOf": [{"$ref": "#/$defs/AlarmsAndProtection"}, {"type": "null"}]}
+      },
+      "title": "Location",
+      "type": "object"
+    }
+  },
+  "title": "CommercialPropertyUwSubmission",
+  "description": "A class representing a commercial property underwriting submission (e.g. an ACORD-style commercial property application) -- distinct from PropertyLossDamageClaimForm (property_claim.json), which is a FNOL claims form for an existing policy. This schema is for a prospective risk being submitted for underwriting: applicant/business details, coverages requested, and per-location construction/occupancy/protection detail, not loss information. Ported field-for-field from a real reference commercial property application, not written generically.\n\nAttributes:\n    agency_info: Submitting agency and routing information.\n    coverages_requested: Which lines of coverage are being requested.\n    applicant: The business applying for coverage.\n    locations: One entry per insured location -- a submission may cover multiple locations.",
+  "properties": {
+    "agency_info": {"anyOf": [{"$ref": "#/$defs/AgencyInfo"}, {"type": "null"}]},
+    "coverages_requested": {"anyOf": [{"$ref": "#/$defs/CoveragesRequested"}, {"type": "null"}]},
+    "applicant": {"anyOf": [{"$ref": "#/$defs/Applicant"}, {"type": "null"}]},
+    "locations": {
+      "anyOf": [{"type": "array", "items": {"$ref": "#/$defs/Location"}}, {"type": "null"}],
+      "title": "Locations"
+    }
+  },
+  "type": "object"
+}
