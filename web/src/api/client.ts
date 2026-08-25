@@ -136,9 +136,19 @@ export const pasApi = {
   fnolSubmissions: () => request('/fnol/submissions'),
   fnolTrace: (id:string) => request(`/fnol/${encodeURIComponent(id)}/trace`),
   fnolSubmit: (form: FormData) => uploadRequest('/fnol/submit', form),
+  fnolDocument: async (id:string) => {
+    const token = await getBearerToken()
+    const r=await fetch(`/api/v1/fnol/${encodeURIComponent(id)}/document`,{headers:token?{Authorization:`Bearer ${token}`}:{}})
+    if(!r.ok) throw new Error(`Document request failed (${r.status})`); return r.blob()
+  },
   uwJobs: () => request('/uw/jobs'),
   uwTrace: (id:string) => request(`/uw/${encodeURIComponent(id)}/trace`),
   uwUpload: (form: FormData) => uploadRequest('/uw/upload', form),
+  uwDocument: async (id:string) => {
+    const token = await getBearerToken()
+    const r=await fetch(`/api/v1/uw/${encodeURIComponent(id)}/document`,{headers:token?{Authorization:`Bearer ${token}`}:{}})
+    if(!r.ok) throw new Error(`Document request failed (${r.status})`); return r.blob()
+  },
 }
 
 async function uploadRequest(path: string, form: FormData) {

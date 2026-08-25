@@ -366,6 +366,11 @@ pub async fn run_pipeline(
         "schema_score": eval_result.schema_score,
         "domain": config.domain,
         "output_kind": config.output_kind,
+        // Step 2 sign-off condition: an uncited field must be countable and
+        // shown, not silently absent. "22 of 26 fields cited," not implied.
+        "cited_field_count": eval_result.cited_count,
+        "scored_field_count": eval_result.scored_count,
+        "total_pages": cu_pages.len(),
     });
     stages.push(stage_finish(
         evaluate_stage,

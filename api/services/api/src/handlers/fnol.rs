@@ -7,7 +7,8 @@
 use axum::{
     Json,
     extract::{Multipart, Path, State},
-    http::StatusCode,
+    http::{StatusCode, header},
+    response::{IntoResponse, Response},
 };
 use doc_pipeline::{Domain, OutputKind, PipelineConfig};
 use serde::Serialize;
@@ -316,4 +317,37 @@ pub async fn trace(
     .ok_or_else(|| (StatusCode::NOT_FOUND, "fnol submission not found".to_string()))?;
 
     Ok(Json(row))
+}
+
+/// GET /api/v1/fnol/:id/document -- streams the original submitted document
+/// so the SagePAS viewer has something to render. Same pattern as
+/// `handlers/policies.rs::get_policy_document`: the API is the only
+/// authenticated party that can reach the blob (public access disabled),
+/// so it streams through rather than redirecting to a blob URL.
+pub async fn document(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, (StatusCode, String)> {
+    let row = sqlx::query_as::<_, (String, Option<String>)>(
+        r#"SELECT blob_name, mime_type FROM fnol_submissions WHERE process_id = $1"#,
+    )
+    .bind(id)
+    .fetch_optional(&**state.db)
+    .await
+    .map_err(internal)?
+    .ok_or_else(|| (StatusCode::NOT_FOUND, "fnol submission not found".to_string()))?;
+
+    let (blob_name, mime_type) = row;
+    let bytes = state
+        .fnol_blob
+        .download(&blob_name)
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("document could not be retrieved from storage: {e}")))?;
+
+    let content_type = mime_type.unwrap_or_else(|| "application/octet-stream".to_string());
+    Ok((
+        [(header::CONTENT_TYPE, content_type)],
+        bytes,
+    )
+        .into_response())
 }

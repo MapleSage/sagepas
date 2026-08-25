@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { messageOf, pasApi } from '../../api/client'
+import DocumentViewer, { type DocumentViewerHandle } from '../shared/DocumentViewer'
+import CitedFieldTree from '../shared/CitedFieldTree'
 
 const D={surface:'#fff',border:'#D6E5F1',text:'#173042',sub:'#5F778C',bg:'#EEF6FB',teal:'#3D9CA2',orange:'#F7761F',green:'#0FA372',red:'#E25555',amber:'#F3A52E'}
 const inp:React.CSSProperties={width:'100%',boxSizing:'border-box',padding:'8px 11px',borderRadius:7,border:`1px solid ${D.border}`,fontSize:13,color:D.text,background:'#fff'}
@@ -104,28 +106,41 @@ function FnolSubmitForm({onDone}:{onDone:()=>void}){
 }
 
 function FnolTraceView({trace,processId}:{trace:any;processId:string}){
+ const viewerRef=useRef<DocumentViewerHandle>(null)
+ const fetchBlob=useCallback(()=>pasApi.fnolDocument(processId),[processId])
+ const jump=(page:number)=>viewerRef.current?.jumpToPage(page)
+
  if(!trace)return <div style={{padding:40,textAlign:'center',color:D.sub}}>Loading trace…</div>
  const stages=Array.isArray(trace.stages_json)?trace.stages_json:[]
- return <div style={{display:'grid',gap:14}}>
-  <Section title="Submission">
-   <div style={{fontSize:13,color:D.text}}>Process ID: {processId}</div>
-   <div>{badge(trace.status,trace.human_review_required)}</div>
-   <div style={{fontSize:13,color:D.text}}>Ticket: {trace.ticket_id||'—'}</div>
-   <div style={{fontSize:13,color:D.text}}>Entity score: {trace.confidence!=null?`${Math.round(trace.confidence*100)}%`:'—'}</div>
-   <div style={{fontSize:13,color:D.text}}>Schema score: {trace.schema_score!=null?`${Math.round(trace.schema_score*100)}%`:'—'}</div>
-  </Section>
-  <Section title="Pipeline stages">
-   {stages.length===0&&<div style={{color:D.sub,fontSize:12}}>No stage data recorded.</div>}
-   {stages.map((s:any,i:number)=><div key={i} style={{borderBottom:i<stages.length-1?`1px solid ${D.bg}`:'none',paddingBottom:8,marginBottom:8}}>
-    <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><strong style={{color:D.text}}>{s.name}</strong><span style={{color:s.status==='complete'?D.green:s.status==='failed'?D.red:D.sub}}>{s.status}</span></div>
-    {s.detail&&<pre style={{fontSize:11,color:D.sub,margin:'4px 0 0',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{JSON.stringify(s.detail,null,2)}</pre>}
-   </div>)}
-  </Section>
-  <Section title="Extracted fields">
-   <pre style={{fontSize:11,color:D.text,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{JSON.stringify(trace.extracted_json,null,2)}</pre>
-  </Section>
-  {trace.summary_json?.kb_findings&&<Section title="KB-grounded findings">
-   <pre style={{fontSize:11,color:D.text,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{JSON.stringify(trace.summary_json.kb_findings,null,2)}</pre>
-  </Section>}
+ const cited=trace.summary_json?.cited_field_count
+ const scored=trace.summary_json?.scored_field_count
+
+ return <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(320px,420px)',gap:14,alignItems:'start'}}>
+  <div style={{height:'calc(100vh - 260px)',minHeight:420,position:'sticky',top:0}}>
+   <DocumentViewer ref={viewerRef} fetchBlob={fetchBlob}/>
+  </div>
+  <div style={{display:'grid',gap:14}}>
+   <Section title="Submission">
+    <div style={{fontSize:13,color:D.text}}>Process ID: {processId}</div>
+    <div>{badge(trace.status,trace.human_review_required)}</div>
+    <div style={{fontSize:13,color:D.text}}>Ticket: {trace.ticket_id||'—'}</div>
+    <div style={{fontSize:13,color:D.text}}>Entity score: {trace.confidence!=null?`${Math.round(trace.confidence*100)}%`:'—'}</div>
+    <div style={{fontSize:13,color:D.text}}>Schema score: {trace.schema_score!=null?`${Math.round(trace.schema_score*100)}%`:'—'}</div>
+    {scored!=null&&<div style={{fontSize:12,color:cited<scored?D.amber:D.green}}>{cited} of {scored} fields cited</div>}
+   </Section>
+   <Section title="Pipeline stages">
+    {stages.length===0&&<div style={{color:D.sub,fontSize:12}}>No stage data recorded.</div>}
+    {stages.map((s:any,i:number)=><div key={i} style={{borderBottom:i<stages.length-1?`1px solid ${D.bg}`:'none',paddingBottom:8,marginBottom:8}}>
+     <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><strong style={{color:D.text}}>{s.name}</strong><span style={{color:s.status==='complete'?D.green:s.status==='failed'?D.red:D.sub}}>{s.status}</span></div>
+     {s.detail&&<pre style={{fontSize:11,color:D.sub,margin:'4px 0 0',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{JSON.stringify(s.detail,null,2)}</pre>}
+    </div>)}
+   </Section>
+   <Section title="Extracted fields">
+    <CitedFieldTree data={trace.extracted_json} onJump={jump}/>
+   </Section>
+   {trace.summary_json?.kb_findings&&<Section title="KB-grounded findings">
+    <pre style={{fontSize:11,color:D.text,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{JSON.stringify(trace.summary_json.kb_findings,null,2)}</pre>
+   </Section>}
+  </div>
  </div>
 }

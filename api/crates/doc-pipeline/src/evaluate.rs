@@ -171,6 +171,11 @@ pub struct EvaluateResult {
     /// `extracted_json`, each non-null scalar field replaced with
     /// `{value, confidence, page_number, text_offset_start, text_offset_end}`.
     pub cited_json: Value,
+    /// How many non-null fields got a real page/offset citation, out of how
+    /// many were scored -- work order Step 2's sign-off condition: an
+    /// uncited field must be countable and surfaced, not silently absent.
+    pub cited_count: usize,
+    pub scored_count: usize,
 }
 
 /// `extracted_json` must be a flat-ish object (schema-shaped); nested
@@ -192,6 +197,8 @@ pub fn evaluate(
         all_confidences.iter().sum::<f64>() / all_confidences.len() as f64
     };
 
+    let (cited_count, scored_count) = count_citations(&cited_json);
+
     let total_fields = extracted_json.as_object().map(|o| o.len()).unwrap_or(0);
     let null_fields = extracted_json
         .as_object()
@@ -207,6 +214,28 @@ pub fn evaluate(
         entity_score,
         schema_score,
         cited_json,
+        cited_count,
+        scored_count,
+    }
+}
+
+/// Counts leaf value-objects (the `{value, confidence, page_number, ...}`
+/// shape `annotate` produces) and how many of those have a real citation.
+fn count_citations(value: &Value) -> (usize, usize) {
+    match value {
+        Value::Object(obj) if obj.contains_key("value") && obj.contains_key("confidence") => {
+            let cited = obj.get("page_number").map(|p| !p.is_null()).unwrap_or(false);
+            (if cited { 1 } else { 0 }, 1)
+        }
+        Value::Object(obj) => obj.values().fold((0, 0), |(c, s), v| {
+            let (c2, s2) = count_citations(v);
+            (c + c2, s + s2)
+        }),
+        Value::Array(arr) => arr.iter().fold((0, 0), |(c, s), v| {
+            let (c2, s2) = count_citations(v);
+            (c + c2, s + s2)
+        }),
+        _ => (0, 0),
     }
 }
 

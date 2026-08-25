@@ -267,9 +267,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/fnol/submissions", get(handlers::fnol::list_submissions))
         .route("/api/v1/fnol/submit", post(handlers::fnol::submit))
         .route("/api/v1/fnol/:id/trace", get(handlers::fnol::trace))
+        .route("/api/v1/fnol/:id/document", get(handlers::fnol::document))
         .route("/api/v1/uw/jobs", get(handlers::uw::list_jobs))
         .route("/api/v1/uw/upload", post(handlers::uw::upload))
         .route("/api/v1/uw/:id/trace", get(handlers::uw::trace))
+        .route("/api/v1/uw/:id/document", get(handlers::uw::document))
         .route(
             "/api/v1/hubspot/context/:portal_id/:object_type/:object_id",
             get(handlers::hubspot::get_context).put(handlers::hubspot::upsert_context),

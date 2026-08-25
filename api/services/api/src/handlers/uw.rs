@@ -6,7 +6,8 @@
 use axum::{
     Json,
     extract::{Multipart, Path, State},
-    http::StatusCode,
+    http::{StatusCode, header},
+    response::{IntoResponse, Response},
 };
 use doc_pipeline::{Domain, OutputKind, PipelineConfig};
 use serde::Serialize;
@@ -99,13 +100,15 @@ pub async fn upload(
 
     sqlx::query(
         r#"
-        INSERT INTO uw_jobs (job_id, process_id, blob_container, blob_name, status)
-        VALUES ($1, $2, 'uw-documents', $3, 'processing')
+        INSERT INTO uw_jobs (job_id, process_id, blob_container, blob_name, original_filename, mime_type, status)
+        VALUES ($1, $2, 'uw-documents', $3, $4, $5, 'processing')
         "#,
     )
     .bind(&job_id)
     .bind(linked_process_id)
     .bind(&blob_name)
+    .bind(&original_filename)
+    .bind(&mime_type)
     .execute(&**state.db)
     .await
     .map_err(internal)?;
@@ -192,6 +195,11 @@ pub async fn upload(
     let mut analysis_with_kb = result.extracted_json.clone();
     if let Some(obj) = analysis_with_kb.as_object_mut() {
         obj.insert("kb_findings".to_string(), serde_json::to_value(&kb_result).unwrap_or_default());
+        // Folded in from summary_json rather than a new column -- same
+        // pattern as kb_findings above. Step 2's sign-off condition: an
+        // uncited field must be countable, not silently absent.
+        obj.insert("_cited_field_count".to_string(), result.summary_json.get("cited_field_count").cloned().unwrap_or_default());
+        obj.insert("_scored_field_count".to_string(), result.summary_json.get("scored_field_count").cloned().unwrap_or_default());
     }
 
     sqlx::query(
@@ -230,6 +238,7 @@ pub struct UwListRow {
     pub job_id: String,
     pub deal_id: Option<String>,
     pub status: String,
+    pub original_filename: Option<String>,
     pub confidence: Option<f64>,
     pub schema_score: Option<f64>,
     pub recommendation: Option<String>,
@@ -240,7 +249,7 @@ pub struct UwListRow {
 pub async fn list_jobs(State(state): State<AppState>) -> Result<Json<Vec<UwListRow>>, (StatusCode, String)> {
     let rows = sqlx::query_as::<_, UwListRow>(
         r#"
-        SELECT job_id, deal_id, status, confidence, schema_score, recommendation, created_at
+        SELECT job_id, deal_id, status, original_filename, confidence, schema_score, recommendation, created_at
         FROM uw_jobs ORDER BY created_at DESC LIMIT 200
         "#,
     )
@@ -280,4 +289,35 @@ pub async fn trace(
     .ok_or_else(|| (StatusCode::NOT_FOUND, "uw job not found".to_string()))?;
 
     Ok(Json(row))
+}
+
+/// GET /api/v1/uw/:id/document -- same pattern as fnol.rs::document /
+/// policies.rs::get_policy_document: stream through the API, blob has no
+/// public access.
+pub async fn document(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Response, (StatusCode, String)> {
+    let row = sqlx::query_as::<_, (String, Option<String>)>(
+        r#"SELECT blob_name, mime_type FROM uw_jobs WHERE job_id = $1"#,
+    )
+    .bind(&id)
+    .fetch_optional(&**state.db)
+    .await
+    .map_err(internal)?
+    .ok_or_else(|| (StatusCode::NOT_FOUND, "uw job not found".to_string()))?;
+
+    let (blob_name, mime_type) = row;
+    let bytes = state
+        .uw_blob
+        .download(&blob_name)
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("document could not be retrieved from storage: {e}")))?;
+
+    let content_type = mime_type.unwrap_or_else(|| "application/octet-stream".to_string());
+    Ok((
+        [(header::CONTENT_TYPE, content_type)],
+        bytes,
+    )
+        .into_response())
 }
