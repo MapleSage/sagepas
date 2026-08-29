@@ -1,10 +1,15 @@
 pub mod agents;
 pub mod auth;
+pub mod commissions;
 pub mod customers;
 pub mod connect;
+pub mod dashboard;
 pub mod eventing;
 pub mod fnol;
+pub mod fraud;
 pub mod hubspot;
+pub mod kyc;
+pub mod notify;
 pub mod oos;
 pub mod policies;
 pub mod policy_workspace;

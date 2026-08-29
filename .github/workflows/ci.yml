@@ -29,8 +29,15 @@ jobs:
         with:
           workspaces: api
       - run: cargo fmt --check
-      - run: cargo check --locked -p api
-      - run: cargo test --locked -p api
+      - run: cargo check --locked --workspace
+      # --workspace, not `-p api`: `-p api` compiles the rest of the
+      # workspace only as library dependencies, so a crate's own #[cfg(test)]
+      # module (infra, whatsapp, etc.) never runs and a real compile error
+      # there passes CI silently. Confirmed live this session -- a bug in
+      # services/api's own test module slipped past `cargo check`, and a
+      # scoped `-p api` test run would have missed bugs in sibling crates'
+      # test modules the same way.
+      - run: cargo test --locked --workspace
 
   web:
     name: Web

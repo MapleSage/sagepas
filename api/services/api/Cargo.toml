@@ -26,6 +26,7 @@ composite-event-bus = { path = "../../crates/composite-event-bus" }
 event-projector = { path = "../../crates/event-projector" }
 doc-pipeline    = { path = "../../crates/doc-pipeline" }
 conversation-memory = { path = "../../crates/conversation-memory" }
+whatsapp        = { path = "../../crates/whatsapp" }
 
 anyhow          = { workspace = true }
 async-trait     = "0.1"
@@ -33,8 +34,11 @@ axum            = { workspace = true }
 azure_core      = { workspace = true }
 azure_identity  = { workspace = true }
 chrono          = { workspace = true }
+hex             = { workspace = true }
+hmac            = { workspace = true }
 jsonwebtoken    = { workspace = true }
 reqwest         = { workspace = true }
+sha2            = { workspace = true }
 serde           = { workspace = true }
 serde_json      = { workspace = true }
 sqlx            = { workspace = true }

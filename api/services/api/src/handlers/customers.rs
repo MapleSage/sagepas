@@ -248,6 +248,79 @@ pub async fn create_customer(
     Ok(Json(row))
 }
 
+/// Resolves a validated consumer/CIAM identity to a `customers.id`, creating
+/// the row just-in-time if none exists yet (work order Phase 8 — the
+/// prospect -> Entra-customer identity-linking gap: `PasRole::Customer` was
+/// defined but nothing ever resolved a real authenticated caller to a
+/// `customers` row).
+///
+/// Matches by `LOWER(email)` — the same join key `insert_customer_in_tx`
+/// already dedupes on, so a prospect who quoted anonymously via
+/// `/quotes/prospect` and later signs in with the same email lands on the
+/// exact `customers` row their prospect quote created, not a duplicate.
+///
+/// An Entra token carries no phone number, and `customers.phone` is
+/// `NOT NULL` with no default -- a JIT-created row gets an empty-string
+/// placeholder rather than blocking sign-in on a value the token can't
+/// supply. Phase 4's `/my/*` self-service UI is the intended place to detect
+/// `phone.is_empty()` and prompt the customer to complete their profile;
+/// this function's job is only to guarantee a stable `customers.id` exists
+/// the moment auth succeeds, not to collect the rest of the profile.
+pub(crate) async fn resolve_or_create_customer_id(
+    state: &AppState,
+    email: &str,
+    name: Option<&str>,
+) -> Result<Uuid, (StatusCode, String)> {
+    let email = email.trim().to_lowercase();
+
+    if let Some(id) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM customers WHERE LOWER(email) = $1 ORDER BY created_at LIMIT 1",
+    )
+    .bind(&email)
+    .fetch_optional(&**state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    {
+        return Ok(id);
+    }
+
+    let req = CreateCustomerRequest {
+        name: name.unwrap_or(&email).to_string(),
+        email: email.clone(),
+        phone: String::new(),
+        country: default_country(),
+        currency: default_currency(),
+        national_id: None,
+        national_id_type: None,
+        address: None,
+    };
+
+    let mut tx = state.db.begin().await.map_err(customer_write_error)?;
+    // Same advisory-lock-then-dedup-check pattern as create_customer -- a
+    // concurrent sign-in racing this one must not create two rows for the
+    // same email.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(&email)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(customer_write_error)?;
+
+    if let Some(id) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM customers WHERE LOWER(email) = $1 ORDER BY created_at LIMIT 1",
+    )
+    .bind(&email)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(customer_write_error)?
+    {
+        return Ok(id);
+    }
+
+    let row = insert_customer_in_tx(&mut tx, state, req).await?;
+    tx.commit().await.map_err(customer_write_error)?;
+    Ok(row.id)
+}
+
 /// GET /api/v1/customers
 pub async fn list_customers(
     State(state): State<AppState>,

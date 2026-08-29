@@ -41,7 +41,48 @@ fn is_public_path(path: &str, dev_local_auth_enabled: bool) -> bool {
         // a real prior $38k/4B-token runaway inference incident). Do not
         // add this path here until all three are built and the cap has
         // been driven past its limit and shown to refuse.
+        //
+        // WhatsApp webhook (Phase 7): Meta calls this directly with no
+        // bearer token available. It is verified via the X-Hub-Signature-256
+        // HMAC header instead (see handlers::notify::verify_whatsapp_signature)
+        // -- not left open, just authenticated a different way. The sibling
+        // send/send-flow endpoints are deliberately NOT public: those require
+        // an authenticated staff caller.
+        || path == "/api/v1/notify/whatsapp/webhook"
         || dev_auth_path
+}
+
+/// Routes sesure-us's `65ee45ec-...` staff audience is accepted on (work
+/// order Phase 9, delegated backend reads) -- see `AppConfig::
+/// azure_entra_delegate_audience`'s doc comment for why this list exists
+/// separately from a blanket audience add. Extend this list one tier at a
+/// time as each read is actually moved, not ahead of it.
+const STAFF_ROLES: &[PasRole] = &[PasRole::Admin, PasRole::Agent, PasRole::Underwriter];
+
+fn is_delegate_readable_path(path: &str) -> bool {
+    matches!(path, "/api/v1/products")
+}
+
+/// Validates `token` against the delegate (sesure-us staff audience)
+/// validator, requiring a real STAFF_ROLES claim on top of a valid
+/// signature/tenant/audience. Both checks failing look identical to the
+/// caller (`Ok(None)`) -- deliberately not distinguishing "right audience,
+/// wrong role" from "wrong audience" in the response, same posture as any
+/// other rejected validator attempt in `try_validate`.
+async fn try_delegate(
+    state: &AppState,
+    token: &str,
+) -> Result<Option<AuthenticatedUser>, (StatusCode, String)> {
+    let Some(validator) = &state.entra_delegate_validator else {
+        return Ok(None);
+    };
+    let Ok(user) = validator.validate(token).await else {
+        return Ok(None);
+    };
+    if !user.has_any_role(STAFF_ROLES) {
+        return Ok(None);
+    }
+    Ok(Some(user))
 }
 
 /// Validates a Bearer token if one is present. Returns `Ok(None)` -- not an
@@ -53,6 +94,7 @@ fn is_public_path(path: &str, dev_local_auth_enabled: bool) -> bool {
 async fn try_validate(
     headers: &axum::http::HeaderMap,
     state: &AppState,
+    path: &str,
 ) -> Result<Option<AuthenticatedUser>, (StatusCode, String)> {
     let Some(auth_header) = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()) else {
         return Ok(None);
@@ -76,18 +118,52 @@ async fn try_validate(
 
     let user = match header.alg {
         Algorithm::RS256 => {
-            let validator = state.entra_validator.as_ref().ok_or_else(|| {
-                (
+            if state.entra_staff_validator.is_none() && state.entra_consumer_validator.is_none() {
+                return Err((
                     StatusCode::SERVICE_UNAVAILABLE,
                     "Entra authentication is not configured on this server".to_string(),
-                )
-            })?;
-            validator.validate(token).await.map_err(|e| {
-                (
-                    StatusCode::UNAUTHORIZED,
-                    format!("invalid Entra token: {e}"),
-                )
-            })?
+                ));
+            }
+
+            // Try staff then consumer -- each independently rejects on a
+            // mismatched `tid`/`aud`, so trying both configured validators
+            // is cheap and safe. A token that matches neither surfaces the
+            // staff validator's error (arbitrary but stable choice; the
+            // real signal for the caller is "no configured tenant accepted
+            // this token", not which one specifically said no first).
+            let staff_result = match &state.entra_staff_validator {
+                Some(v) => Some(v.validate(token).await),
+                None => None,
+            };
+            let delegate_user = if staff_result.is_none() || staff_result.as_ref().is_some_and(|r| r.is_err()) {
+                if is_delegate_readable_path(path) {
+                    try_delegate(state, token).await?
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some(Ok(user)) = staff_result {
+                user
+            } else if let Some(user) = delegate_user {
+                user
+            } else {
+                let consumer_result = match &state.entra_consumer_validator {
+                    Some(v) => Some(v.validate(token).await),
+                    None => None,
+                };
+                match consumer_result {
+                    Some(Ok(user)) => user,
+                    _ => {
+                        let err = staff_result
+                            .and_then(|r| r.err())
+                            .map(|e| e.to_string())
+                            .unwrap_or_else(|| "no configured Entra tenant accepted this token".to_string());
+                        return Err((StatusCode::UNAUTHORIZED, format!("invalid Entra token: {err}")));
+                    }
+                }
+            }
         }
         Algorithm::HS256 => {
             if !state.config.dev_local_auth_enabled {
@@ -154,13 +230,13 @@ pub async fn require_auth(
     let path = req.uri().path().to_string();
 
     if is_public_path(&path, state.config.dev_local_auth_enabled) {
-        if let Some(user) = try_validate(req.headers(), &state).await? {
+        if let Some(user) = try_validate(req.headers(), &state, &path).await? {
             req.extensions_mut().insert(user);
         }
         return Ok(next.run(req).await);
     }
 
-    let user = try_validate(req.headers(), &state)
+    let user = try_validate(req.headers(), &state, &path)
         .await?
         .ok_or_else(|| (StatusCode::UNAUTHORIZED, "missing Authorization header".to_string()))?;
 
@@ -172,7 +248,7 @@ pub async fn require_auth(
 
 #[cfg(test)]
 mod tests {
-    use super::is_public_path;
+    use super::{is_delegate_readable_path, is_public_path};
 
     #[test]
     fn rating_quote_is_public_regardless_of_dev_auth_setting() {
@@ -201,6 +277,32 @@ mod tests {
     fn dev_auth_paths_are_public_only_when_dev_auth_is_enabled() {
         assert!(!is_public_path("/api/v1/auth/login", false));
         assert!(is_public_path("/api/v1/auth/login", true));
+    }
+
+    #[test]
+    fn whatsapp_webhook_is_public_but_send_is_not() {
+        // Phase 7: the webhook is authenticated via HMAC signature instead
+        // of a bearer token, so it must be public here -- but the send/
+        // send-flow endpoints must stay auth-required.
+        assert!(is_public_path("/api/v1/notify/whatsapp/webhook", false));
+        assert!(!is_public_path("/api/v1/notify/whatsapp/send", false));
+        assert!(!is_public_path("/api/v1/notify/whatsapp/send-flow", false));
+    }
+
+    #[test]
+    fn dashboard_stats_requires_auth() {
+        assert!(!is_public_path("/api/v1/dashboard/stats", false));
+    }
+
+    #[test]
+    fn only_the_explicit_tier_is_delegate_readable() {
+        // Phase 9: products is tier 1. Nothing else is allowlisted yet --
+        // extend this test alongside is_delegate_readable_path as each new
+        // tier actually moves, not ahead of it.
+        assert!(is_delegate_readable_path("/api/v1/products"));
+        assert!(!is_delegate_readable_path("/api/v1/dashboard/stats"));
+        assert!(!is_delegate_readable_path("/api/v1/customers"));
+        assert!(!is_delegate_readable_path("/api/v1/policies/:id"));
     }
 
     #[test]

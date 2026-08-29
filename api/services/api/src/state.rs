@@ -42,9 +42,21 @@ pub struct AppState {
     pub hubspot_http_client: reqwest::Client,
     /// Wakes the durable dispatcher after a transaction commits new work.
     pub hubspot_dispatch_notify: Arc<tokio::sync::Notify>,
-    /// Microsoft Entra token validator — `None` when `AZURE_ENTRA_TENANT_ID`
-    /// / `AZURE_ENTRA_AUDIENCE` are not configured.
-    pub entra_validator: Option<Arc<infra::entra_auth::EntraValidator>>,
+    /// Microsoft Entra token validator, staff/Workforce tenant — `None` when
+    /// `AZURE_ENTRA_TENANT_ID`/`AZURE_ENTRA_AUDIENCE` are not configured.
+    pub entra_staff_validator: Option<Arc<infra::entra_auth::EntraValidator>>,
+    /// Entra External ID (CIAM) validator, consumer/policyholder self-service
+    /// (work order Phase 8) — `None` when `AZURE_ENTRA_CONSUMER_TENANT_ID`/
+    /// `AZURE_ENTRA_CONSUMER_AUDIENCE` are not configured. `middleware::
+    /// try_validate` tries staff then consumer; each independently rejects
+    /// on a mismatched `tid`, so trying both is cheap and safe.
+    pub entra_consumer_validator: Option<Arc<infra::entra_auth::EntraValidator>>,
+    /// Validates sesure-us's own staff audience, accepted ONLY on the
+    /// explicit delegated-read path allowlist and only combined with a real
+    /// STAFF_ROLES claim (work order Phase 9) -- see `AppConfig::
+    /// azure_entra_delegate_audience`'s doc comment for why this isn't a
+    /// blanket audience add.
+    pub entra_delegate_validator: Option<Arc<infra::entra_auth::EntraValidator>>,
     /// Guards the unauthenticated prospect-quote endpoint (work order item 2).
     pub prospect_rate_limiter: Arc<crate::rate_limit::RateLimiter>,
     /// Double-entry bitemporal subledger (accounting_batches/journal_entries/
@@ -70,6 +82,11 @@ pub struct AppState {
     /// GIA's chat history + fact memory (`handlers/connect.rs`). sagepas
     /// had no equivalent of this at all before -- ported from sagesure-us.
     pub conversation: conversation_memory::ConversationStore,
+    /// Native Meta WhatsApp Cloud API sender, ported from sagesure-us's
+    /// `whatsapp` crate. `None` when `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_ID`
+    /// are unconfigured -- unlike sesure-us there is no separate Python
+    /// notifications service to fall back to.
+    pub whatsapp_client: Option<Arc<whatsapp::WhatsAppClient>>,
 }
 
 impl HasPolicyLock for AppState {

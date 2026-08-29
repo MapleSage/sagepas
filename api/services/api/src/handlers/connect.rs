@@ -78,7 +78,6 @@ pub struct ConnectHistoryQuery {
 }
 
 async fn extract_optional_user_id(headers: &HeaderMap, state: &AppState) -> Option<Uuid> {
-    let validator = state.entra_validator.as_ref()?;
     let token = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
@@ -86,6 +85,13 @@ async fn extract_optional_user_id(headers: &HeaderMap, state: &AppState) -> Opti
     // sagepas's AuthenticatedUser carries `oid: String` (Entra object id, or
     // the dev-local user's UUID string) rather than sagesure-us's `sub:
     // Uuid` -- both are GUID-shaped, so parse rather than assume a type match.
+    // Try staff then consumer (Phase 8) -- same order as middleware::require_auth.
+    if let Some(validator) = &state.entra_staff_validator {
+        if let Ok(user) = validator.validate(token).await {
+            return Uuid::parse_str(&user.oid).ok();
+        }
+    }
+    let validator = state.entra_consumer_validator.as_ref()?;
     let user = validator.validate(token).await.ok()?;
     Uuid::parse_str(&user.oid).ok()
 }

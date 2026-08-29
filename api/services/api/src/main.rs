@@ -77,8 +77,8 @@ async fn main() -> anyhow::Result<()> {
         &config.storage_account_name,
     ));
 
-    let entra_validator = if config.entra_configured() {
-        info!(tenant = %config.azure_entra_tenant_id, "Entra token validation enabled");
+    let entra_staff_validator = if config.entra_configured() {
+        info!(tenant = %config.azure_entra_tenant_id, "Entra staff token validation enabled");
         Some(Arc::new(infra::entra_auth::EntraValidator::new(
             config.azure_entra_tenant_id.clone(),
             config.azure_entra_audience.clone(),
@@ -87,11 +87,44 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 Some(config.azure_entra_issuer.clone())
             },
+            None,
         )))
     } else {
         warn!(
-            "AZURE_ENTRA_TENANT_ID / AZURE_ENTRA_AUDIENCE not configured; Entra token validation disabled"
+            "AZURE_ENTRA_TENANT_ID / AZURE_ENTRA_AUDIENCE not configured; Entra staff token validation disabled"
         );
+        None
+    };
+    let entra_consumer_validator = if config.entra_consumer_configured() {
+        info!(tenant = %config.azure_entra_consumer_tenant_id, "Entra consumer (CIAM) token validation enabled");
+        Some(Arc::new(infra::entra_auth::EntraValidator::new(
+            config.azure_entra_consumer_tenant_id.clone(),
+            config.azure_entra_consumer_audience.clone(),
+            None,
+            if config.azure_entra_consumer_authority_host.trim().is_empty() {
+                None
+            } else {
+                Some(config.azure_entra_consumer_authority_host.clone())
+            },
+        )))
+    } else {
+        warn!(
+            "AZURE_ENTRA_CONSUMER_TENANT_ID / AZURE_ENTRA_CONSUMER_AUDIENCE not configured; consumer/CIAM sign-in disabled"
+        );
+        None
+    };
+    let entra_delegate_validator = if config.entra_delegate_configured() {
+        info!(
+            audience = %config.azure_entra_delegate_audience,
+            "Entra delegate (sesure-us staff audience) token validation enabled -- accepted only on the delegated-read path allowlist"
+        );
+        Some(Arc::new(infra::entra_auth::EntraValidator::new(
+            config.azure_entra_tenant_id.clone(),
+            config.azure_entra_delegate_audience.clone(),
+            None,
+            None,
+        )))
+    } else {
         None
     };
     if !config.entra_configured() && !config.dev_local_auth_enabled {
@@ -182,6 +215,19 @@ async fn main() -> anyhow::Result<()> {
         "uw-documents",
     )?);
 
+    let whatsapp_client = {
+        let cfg = whatsapp::WhatsAppConfig {
+            access_token: config.whatsapp_access_token.clone(),
+            phone_id: config.whatsapp_phone_id.clone(),
+        };
+        if cfg.is_configured() {
+            Some(Arc::new(whatsapp::WhatsAppClient::new(cfg)))
+        } else {
+            warn!("WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_ID not configured; WhatsApp send disabled");
+            None
+        }
+    };
+
     let app_state = AppState {
         db: db.clone(),
         config: config.clone(),
@@ -202,7 +248,9 @@ async fn main() -> anyhow::Result<()> {
         hubspot_portal_id,
         hubspot_http_client,
         hubspot_dispatch_notify: Arc::new(tokio::sync::Notify::new()),
-        entra_validator,
+        entra_staff_validator,
+        entra_consumer_validator,
+        entra_delegate_validator,
         prospect_rate_limiter: Arc::new(rate_limit::RateLimiter::new(
             handlers::prospect::RATE_LIMIT_MAX_REQUESTS,
             handlers::prospect::RATE_LIMIT_WINDOW,
@@ -214,6 +262,7 @@ async fn main() -> anyhow::Result<()> {
         uw_blob,
         search,
         conversation: conversation_memory::ConversationStore::new(db.clone()),
+        whatsapp_client,
     };
 
     tokio::spawn(handlers::hubspot::run_outbox_dispatcher(app_state.clone()));
@@ -317,6 +366,27 @@ async fn main() -> anyhow::Result<()> {
                 .patch(handlers::policy_workspace::reestimate_claim_reserve),
         )
         .route(
+            "/api/v1/claims/:id/fraud-risk",
+            get(handlers::fraud::get_fraud_risk)
+                .post(handlers::fraud::compute_fraud_risk)
+                .patch(handlers::fraud::update_fraud_status),
+        )
+        .route(
+            "/api/v1/customers/:id/kyc",
+            get(handlers::kyc::get_kyc_profile)
+                .post(handlers::kyc::submit_kyc_profile)
+                .patch(handlers::kyc::verify_kyc_profile),
+        )
+        .route(
+            "/api/v1/commissions",
+            get(handlers::commissions::list_commissions)
+                .post(handlers::commissions::create_commission),
+        )
+        .route(
+            "/api/v1/commissions/:id/status",
+            axum::routing::patch(handlers::commissions::update_commission_status),
+        )
+        .route(
             "/api/v1/policies/:id/notifications",
             get(handlers::policy_workspace::list_notifications),
         )
@@ -366,6 +436,22 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/v1/agents",
             get(handlers::agents::list_agents).post(handlers::agents::create_agent),
+        )
+        .route("/api/v1/dashboard/stats", get(handlers::dashboard::stats))
+        .route("/api/v1/health/claims", get(handlers::dashboard::claims_health))
+        .route("/api/v1/health/policies", get(handlers::dashboard::policies_health))
+        .route(
+            "/api/v1/notify/whatsapp/send",
+            post(handlers::notify::whatsapp_send),
+        )
+        .route(
+            "/api/v1/notify/whatsapp/send-flow",
+            post(handlers::notify::whatsapp_send_flow),
+        )
+        .route(
+            "/api/v1/notify/whatsapp/webhook",
+            get(handlers::notify::whatsapp_webhook_verify)
+                .post(handlers::notify::whatsapp_webhook_receive),
         )
         .layer(axum_middleware::from_fn_with_state(
             app_state.clone(),

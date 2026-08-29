@@ -38,6 +38,30 @@ export function getEntraConfig(): EntraEnvConfig {
   return { clientId, tenantId, apiScope, redirectUri }
 }
 
+export interface ConsumerEntraEnvConfig {
+  clientId: string
+  authority: string
+  apiScope: string
+  redirectUri: string
+}
+
+/**
+ * Entra External ID (CIAM) consumer/policyholder tenant config -- work order
+ * Phase 8. Unlike `getEntraConfig()`, missing config here is NOT a startup
+ * error: consumer sign-in is an optional capability. When any variable is
+ * absent, `signInAsConsumer()` (AuthProvider) is simply unavailable rather
+ * than the whole app failing closed -- staff auth is what's mandatory here.
+ */
+export function getConsumerEntraConfig(): ConsumerEntraEnvConfig | null {
+  const clientId = readEnv('VITE_AZURE_CONSUMER_CLIENT_ID')
+  const authority = readEnv('VITE_AZURE_CONSUMER_AUTHORITY')
+  const apiScope = readEnv('VITE_AZURE_CONSUMER_API_SCOPE')
+  const redirectUri = readEnv('VITE_CONSUMER_REDIRECT_URI')
+
+  if (!clientId || !authority || !apiScope || !redirectUri) return null
+  return { clientId, authority, apiScope, redirectUri }
+}
+
 /**
  * Optional Entra External ID social identity providers, configured entirely
  * server-side as authorities/policies — never a client-only `domain_hint`

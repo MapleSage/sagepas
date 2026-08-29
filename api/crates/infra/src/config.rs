@@ -29,13 +29,41 @@ pub struct AppConfig {
     #[serde(default)]
     pub search_key: String,
 
-    /// Microsoft Entra ID token-validation boundary.
+    /// Microsoft Entra ID token-validation boundary -- staff/Workforce tenant.
     #[serde(default)]
     pub azure_entra_tenant_id: String,
     #[serde(default)]
     pub azure_entra_audience: String,
     #[serde(default)]
     pub azure_entra_issuer: String,
+
+    /// Entra External ID (CIAM) tenant -- Customer self-service auth (work
+    /// order Phase 8). Empty means unconfigured; consumer/CIAM sign-in is
+    /// simply unavailable rather than falling back to anything.
+    #[serde(default)]
+    pub azure_entra_consumer_tenant_id: String,
+    #[serde(default)]
+    pub azure_entra_consumer_audience: String,
+    /// CIAM tenants are served from a distinct `<subdomain>.ciamlogin.com`
+    /// host, not `login.microsoftonline.com` -- required whenever the
+    /// consumer tenant is configured, or discovery silently targets the
+    /// wrong tenant type (see `EntraValidator::new`'s doc comment).
+    #[serde(default)]
+    pub azure_entra_consumer_authority_host: String,
+
+    /// Second staff audience accepted ONLY on the explicit delegated-read
+    /// route allowlist (`middleware::is_delegate_readable_path`) -- work
+    /// order Phase 9. This is sesure-us's own staff app registration
+    /// (`api://65ee45ec-...`), same Workforce tenant. Deliberately not a
+    /// blanket audience add to the primary staff validator: sesure-us's app
+    /// registration is shared across five subdomains, so a caller of ANY of
+    /// those surfaces could otherwise mint a token that validates here. The
+    /// route allowlist plus the STAFF_ROLES check in `require_auth` are both
+    /// required, not either/or -- a token with this audience but no staff
+    /// role, or on a path not in the allowlist, is rejected the same as an
+    /// unrecognized audience would be.
+    #[serde(default)]
+    pub azure_entra_delegate_audience: String,
 
     /// Explicit development-only opt-in for locally issued HS256 tokens.
     /// It defaults to false, leaving production authentication Entra-only.
@@ -58,6 +86,24 @@ pub struct AppConfig {
     pub azure_openai_key: String,
     #[serde(default = "default_openai_deployment")]
     pub azure_openai_deployment: String,
+
+    /// Meta WhatsApp Cloud API -- native `whatsapp` crate send path. Empty
+    /// means unconfigured; sends fail with `WhatsAppError::NotConfigured`
+    /// rather than silently no-op-ing.
+    #[serde(default)]
+    pub whatsapp_access_token: String,
+    #[serde(default)]
+    pub whatsapp_phone_id: String,
+    /// Token Meta's one-time GET handshake must echo back when the webhook
+    /// URL is first registered in the App Dashboard.
+    #[serde(default)]
+    pub whatsapp_webhook_verify_token: String,
+    /// HMAC-SHA256 secret used to verify the `X-Hub-Signature-256` header on
+    /// inbound webhook POSTs. Empty accepts unverified payloads -- a wiring-
+    /// stage default, not a production posture (matches sesure-us's own
+    /// `verify_whatsapp_signature` doc comment).
+    #[serde(default)]
+    pub whatsapp_app_secret: String,
 }
 
 fn default_cu_timeout_secs() -> u64 {
@@ -97,6 +143,15 @@ impl AppConfig {
         !self.azure_entra_tenant_id.trim().is_empty()
             && !self.azure_entra_audience.trim().is_empty()
     }
+
+    pub fn entra_consumer_configured(&self) -> bool {
+        !self.azure_entra_consumer_tenant_id.trim().is_empty()
+            && !self.azure_entra_consumer_audience.trim().is_empty()
+    }
+
+    pub fn entra_delegate_configured(&self) -> bool {
+        !self.azure_entra_delegate_audience.trim().is_empty()
+    }
 }
 
 #[cfg(test)]
@@ -130,5 +185,22 @@ mod tests {
         complete["azure_entra_audience"] = serde_json::json!("api://sagepas");
         let cfg: AppConfig = serde_json::from_value(complete).expect("complete config should load");
         assert!(cfg.entra_configured());
+    }
+
+    #[test]
+    fn consumer_entra_requires_tenant_and_audience_independently_of_staff() {
+        let cfg: AppConfig = serde_json::from_value(base_config()).expect("config should load");
+        assert!(!cfg.entra_consumer_configured());
+
+        let mut partial = base_config();
+        partial["azure_entra_consumer_tenant_id"] = serde_json::json!("consumer-tenant-guid");
+        let cfg: AppConfig = serde_json::from_value(partial).expect("partial config should load");
+        assert!(!cfg.entra_consumer_configured());
+
+        let mut complete = base_config();
+        complete["azure_entra_consumer_tenant_id"] = serde_json::json!("consumer-tenant-guid");
+        complete["azure_entra_consumer_audience"] = serde_json::json!("api://sagepas-consumer");
+        let cfg: AppConfig = serde_json::from_value(complete).expect("complete config should load");
+        assert!(cfg.entra_consumer_configured());
     }
 }

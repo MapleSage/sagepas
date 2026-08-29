@@ -4,6 +4,12 @@
 //! access tokens cryptographically against the signing keys, and enforces
 //! issuer / audience / tenant / expiry before any claim is trusted.
 //! Nothing here ever accepts a decoded-but-unverified token.
+//!
+//! sagepas trusts up to two independent Entra tenants (work order Phase 8):
+//! - the Workforce tenant (staff: Admin/Agent/Underwriter, via MSAL)
+//! - the Entra External ID (CIAM) tenant (Customer self-service)
+//! Each gets its own [`EntraValidator`] instance; `AppState` holds both and
+//! tries staff-then-consumer per request.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -15,8 +21,9 @@ use tokio::sync::RwLock;
 
 const JWKS_TTL: Duration = Duration::from_secs(24 * 3600);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct OidcDiscovery {
+    issuer: String,
     jwks_uri: String,
 }
 
@@ -60,38 +67,71 @@ struct CachedJwks {
 pub struct EntraValidator {
     tenant_id: String,
     audience: String,
-    issuer_v2: String,
+    /// Explicit issuer override, if configured. When absent, the issuer
+    /// accepted is whatever Microsoft's own discovery document reports —
+    /// never hand-constructed. A CIAM tenant's real `iss` claim uses the
+    /// tenant-ID form of its ciamlogin.com host
+    /// (`https://<tenant-id>.ciamlogin.com/...`), not the friendly-name
+    /// form used to reach the discovery endpoint in the first place
+    /// (`https://sagesureconsumer.ciamlogin.com/...`) — both are valid
+    /// aliases for reaching the tenant, but only the discovery document
+    /// tells you which one Microsoft actually stamps into tokens. Ported
+    /// from sesure-us's `entra_auth.rs`, which hit this live.
+    issuer_override: Option<String>,
     issuer_v1: String,
     discovery_url: String,
     http: reqwest::Client,
+    discovered_issuer: RwLock<Option<String>>,
     jwks_uri: RwLock<Option<String>>,
     jwks: RwLock<Option<CachedJwks>>,
 }
 
 impl EntraValidator {
-    pub fn new(tenant_id: String, audience: String, issuer_override: Option<String>) -> Self {
-        let issuer_v2 = issuer_override
+    /// `authority_host` is the domain used to *reach* this tenant's OIDC
+    /// discovery document. Defaults to `login.microsoftonline.com` (the
+    /// Workforce tenant host). Entra External ID (CIAM) tenants are served
+    /// from a distinct `<subdomain>.ciamlogin.com` host — pass it explicitly
+    /// for a consumer/CIAM validator, or discovery targets the wrong tenant
+    /// type and every token from that tenant fails to validate. Any valid
+    /// alias host works here since the *issuer actually enforced* comes from
+    /// the discovery document's own `issuer` field, not from this parameter.
+    pub fn new(
+        tenant_id: String,
+        audience: String,
+        issuer_override: Option<String>,
+        authority_host: Option<String>,
+    ) -> Self {
+        let authority_host = authority_host
             .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| format!("https://login.microsoftonline.com/{tenant_id}/v2.0"));
+            .unwrap_or_else(|| "login.microsoftonline.com".to_string());
+        let issuer_override = issuer_override.filter(|s| !s.trim().is_empty());
         let issuer_v1 = format!("https://sts.windows.net/{tenant_id}/");
         let discovery_url = format!(
-            "https://login.microsoftonline.com/{tenant_id}/v2.0/.well-known/openid-configuration"
+            "https://{authority_host}/{tenant_id}/v2.0/.well-known/openid-configuration"
         );
         Self {
             tenant_id,
             audience,
-            issuer_v2,
+            issuer_override,
             issuer_v1,
             discovery_url,
             http: reqwest::Client::new(),
+            discovered_issuer: RwLock::new(None),
             jwks_uri: RwLock::new(None),
             jwks: RwLock::new(None),
         }
     }
 
-    async fn resolve_jwks_uri(&self) -> anyhow::Result<String> {
-        if let Some(uri) = self.jwks_uri.read().await.clone() {
-            return Ok(uri);
+    /// Fetches and caches the OIDC discovery document (issuer + JWKS URI
+    /// together, since both come from the same response). Cached forever
+    /// once resolved — like the JWKS themselves, a tenant's discovery
+    /// metadata does not change during a process's lifetime.
+    async fn resolve_discovery(&self) -> anyhow::Result<(String, String)> {
+        if let (Some(issuer), Some(uri)) = (
+            self.discovered_issuer.read().await.clone(),
+            self.jwks_uri.read().await.clone(),
+        ) {
+            return Ok((issuer, uri));
         }
         let discovery: OidcDiscovery = self
             .http
@@ -101,13 +141,13 @@ impl EntraValidator {
             .error_for_status()?
             .json()
             .await?;
-        let mut guard = self.jwks_uri.write().await;
-        *guard = Some(discovery.jwks_uri.clone());
-        Ok(discovery.jwks_uri)
+        *self.discovered_issuer.write().await = Some(discovery.issuer.clone());
+        *self.jwks_uri.write().await = Some(discovery.jwks_uri.clone());
+        Ok((discovery.issuer, discovery.jwks_uri))
     }
 
     async fn refresh_jwks(&self) -> anyhow::Result<()> {
-        let uri = self.resolve_jwks_uri().await?;
+        let (_, uri) = self.resolve_discovery().await?;
         let doc: JwksDocument = self
             .http
             .get(&uri)
@@ -164,12 +204,23 @@ impl EntraValidator {
             anyhow::bail!("unsupported JWK key type {}", jwk.kty);
         }
         let decoding_key = DecodingKey::from_rsa_components(&jwk.n, &jwk.e)?;
+
+        // key_for() above guarantees discovery has already run at least once,
+        // so this is a cheap cache read except on a very first cold call.
+        let issuer_v2 = match &self.issuer_override {
+            Some(issuer) => issuer.clone(),
+            None => {
+                let (discovered, _) = self.resolve_discovery().await?;
+                discovered
+            }
+        };
+
         validate_with_key(
             token,
             &decoding_key,
             &self.tenant_id,
             &self.audience,
-            &self.issuer_v2,
+            &issuer_v2,
             &self.issuer_v1,
         )
     }
@@ -185,8 +236,13 @@ fn validate_with_key(
     issuer_v2: &str,
     issuer_v1: &str,
 ) -> anyhow::Result<AuthenticatedUser> {
+    // Microsoft identity platform tokens for a resource may carry either the
+    // App ID URI (e.g. `api://<client-id>`) or the bare client ID GUID as
+    // `aud`, depending on how the token was requested — both are valid for
+    // the same resource and a validator must accept either.
+    let bare_client_id = audience.strip_prefix("api://").unwrap_or(audience);
     let mut validation = Validation::new(Algorithm::RS256);
-    validation.set_audience(&[audience]);
+    validation.set_audience(&[audience, bare_client_id]);
     validation.set_issuer(&[issuer_v2, issuer_v1]);
     validation.validate_exp = true;
 
@@ -309,6 +365,24 @@ mod tests {
         assert_eq!(user.email.as_deref(), Some("agent@example.com"));
         assert_eq!(user.pas_roles, vec![PasRole::Agent]);
         assert_eq!(user.source, AuthSource::Entra);
+    }
+
+    #[test]
+    fn bare_client_id_audience_is_also_accepted() {
+        // Confirmed live: `az account get-access-token --resource api://<id>`
+        // can return a token with the bare GUID as `aud`, not the App ID URI.
+        let mut claims = base_claims();
+        claims["aud"] = json!("sagesure-pas-test");
+        let token = sign_test_token(claims);
+        let user = validate_with_key(
+            &token,
+            &decoding_key(),
+            TENANT_ID,
+            AUDIENCE,
+            ISSUER_V2,
+            ISSUER_V1,
+        );
+        assert!(user.is_ok(), "bare client-id audience must be accepted");
     }
 
     #[test]

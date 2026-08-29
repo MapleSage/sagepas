@@ -23,8 +23,25 @@ data:
   STORAGE_CONTAINER_NAME: "sagepas-documents"
   AZURE_ENTRA_TENANT_ID: "e9394f90-446d-41dd-8c8c-98ac08c5f090"
   AZURE_ENTRA_AUDIENCE: "api://d1ba82a8-a4e3-4f52-ab5f-2aa8ebee98e1"
+  # Entra External ID (CIAM) tenant -- work order Phase 8, consumer/
+  # policyholder self-service. Same tenant/app registration sesure-us's
+  # frontend already uses (frontend/src/lib/msal-auth-context.tsx) --
+  # reused as-is, no new Entra app registration created.
+  AZURE_ENTRA_CONSUMER_TENANT_ID: "55da926b-51c3-4304-b20e-5ec18b254500"
+  AZURE_ENTRA_CONSUMER_AUDIENCE: "api://1c7d82c6-6ee6-41a4-ba42-fc1ae810b40a"
+  AZURE_ENTRA_CONSUMER_AUTHORITY_HOST: "sagesureconsumer.ciamlogin.com"
+  # sesure-us's own staff app registration -- accepted ONLY on the delegated-
+  # read path allowlist (middleware::is_delegate_readable_path) plus a real
+  # STAFF_ROLES claim, work order Phase 9. Not a blanket audience add -- see
+  # AppConfig::azure_entra_delegate_audience's doc comment.
+  AZURE_ENTRA_DELEGATE_AUDIENCE: "api://65ee45ec-2acb-4fd8-98fd-e96aa2fe8e5c"
   DEV_LOCAL_AUTH_ENABLED: "false"
   HUBSPOT_BRIDGE_URL: "https://51752298.hs-sites.com/hs/serverless/api/sagepas-sync"
+  # WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+  # WHATSAPP_APP_SECRET are real credentials -- they belong in the
+  # `sagepas-secrets` Secret (envFrom below), not this ConfigMap. Not added
+  # here; add them to that Secret out-of-band the same way sesure-us wires
+  # WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_ID into its own deployment.
 ---
 apiVersion: apps/v1
 kind: Deployment
