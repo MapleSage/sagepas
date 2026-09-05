@@ -1,0 +1,79 @@
+version: '3.8'
+
+# Local, single-machine deployment of sagepas -- replaces AKS/aks-openclaw-cid
+# compute for this service. Uses the same images already built and pushed
+# to ACR today (sagepas-api:20260829-full, sagepas-web:20260829-full),
+# pointed at a local Postgres/Redis instead of pg-openclaw-cid and the
+# in-cluster Redis. Azure OpenAI / Content Understanding / HubSpot stay
+# real external calls (per Parvind: keeping a single AI Foundry resource,
+# undecided beyond that) -- only compute moves local, not those services.
+#
+# DEV_LOCAL_AUTH_ENABLED=true bypasses needing real Entra tokens for local
+# testing (HS256 dev-local auth path, see auth_extract.rs/entra_auth.rs) --
+# set to false and supply real Entra config below if you want to test the
+# actual staff/consumer login flow locally.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sagepas
+      POSTGRES_PASSWORD: sagepas_local_dev
+      POSTGRES_DB: sagepas
+    ports:
+      - "5433:5432"
+    volumes:
+      - sagepas_local_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sagepas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  sagepas-api:
+    image: sageinsureacr6a05ef1f.azurecr.io/sagepas-api:20260829-migrations-fixed
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      NODE_ENV: development
+      RUST_LOG: "info,api=debug,infra=debug,rating=debug"
+      DATABASE_URL: "postgres://sagepas:sagepas_local_dev@postgres:5432/sagepas"
+      REDIS_URL: "redis://redis:6379"
+      DEV_LOCAL_AUTH_ENABLED: "true"
+      AZURE_ENTRA_AUDIENCE: "api://d1ba82a8-a4e3-4f52-ab5f-2aa8ebee98e1"
+      AZURE_ENTRA_TENANT_ID: "e9394f90-446d-41dd-8c8c-98ac08c5f090"
+      AZURE_OPENAI_DEPLOYMENT: "gpt-5.6-luna"
+      AZURE_OPENAI_ENDPOINT: "https://sageinsure-general-insu-resource.cognitiveservices.azure.com"
+      CONTENT_UNDERSTANDING_ENDPOINT: "https://aicu-azdockmgmt5ppjq.cognitiveservices.azure.com"
+      CONTENT_UNDERSTANDING_TIMEOUT_SECS: "120"
+      HUBSPOT_BRIDGE_URL: "https://51752298.hs-sites.com/hs/serverless/api/sagepas-sync"
+      STORAGE_ACCOUNT_NAME: "saopenclaw1701cid"
+      STORAGE_CONTAINER_NAME: "sagepas-documents"
+    env_file:
+      - ./.env.local.secrets
+
+  web:
+    image: sageinsureacr6a05ef1f.azurecr.io/sagepas-web:20260829-full
+    depends_on:
+      - sagepas-api
+    ports:
+      - "8080:8080"
+
+volumes:
+  sagepas_local_pg:

@@ -57,7 +57,7 @@ function MarkdownText({ text, dark }: { text: string; dark?: boolean }) {
   return <div style={{ fontSize: 13 }}>{elements}</div>
 }
 
-const DEFAULT_SYSTEM_PROMPT = 'You are SageGIA, the SageSure AI assistant for the agent and policy administration workspace. Be concise and helpful, and use markdown headings/bullets where useful.'
+const DEFAULT_SYSTEM_PROMPT = 'You are SageGIA, the MapleSage AI assistant for the agent and policy administration workspace. Be concise and helpful, and use markdown headings/bullets where useful.'
 
 export function FloatingChat({ activeTab }: { activeTab: string }) {
   const activeRecord = useActiveRecord()

@@ -203,10 +203,17 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [pas.sagesure.io]
+    - hosts: [pas.sagesure.io, pas.maplesage.com]
       secretName: sagepas-tls
   rules:
     - host: pas.sagesure.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: sagepas-web, port: { number: 80 } }
+    - host: pas.maplesage.com
       http:
         paths:
           - path: /

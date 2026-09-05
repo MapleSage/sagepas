@@ -41,7 +41,7 @@ export default function LoginGate({ children }: { children: ReactNode }) {
   return (
     <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1.1fr .9fr', background: D.bg }}>
       <div style={{ background: D.navy, color: '#fff', padding: '9vh 7vw', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div style={{ fontSize: 13, letterSpacing: '.18em', color: D.teal, fontWeight: 700 }}>SAGESURE</div>
+        <div style={{ fontSize: 13, letterSpacing: '.18em', color: D.teal, fontWeight: 700 }}>MAPLESAGE</div>
         <h1 style={{ fontSize: 42, lineHeight: 1.08, margin: '18px 0' }}>Policy Administration System</h1>
         <p style={{ color: D.navyText, maxWidth: 520, lineHeight: 1.7 }}>
           Native Rust quote, bind, issue, policy servicing, dealer and reporting workflows.

@@ -258,13 +258,13 @@ function ProfileDropdown() {
   }, [open])
 
   const { account, roles, signOut } = useAuth()
-  const name = account?.name || account?.username || 'SageSure User'
+  const name = account?.name || account?.username || 'MapleSage User'
   const email = account?.username || ''
   const initials = name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
   const roleSummary = roles.length ? roles.map(r => ROLE_LABELS[r]).join(', ') : 'No PAS role assigned'
 
   const links = [
-    { label: 'SageSure Website', url: 'https://sagesure.io/' },
+    { label: 'MapleSage Website', url: 'https://sagesure.io/' },
     { label: 'Privacy Policy',   url: 'https://sagesure.io/privacy-policy' },
     { label: 'Terms of Use',     url: 'https://sagesure.io/term-of-use' },
     { label: 'Data Policy',      url: 'https://sagesure.io/data-policy' },
@@ -405,10 +405,10 @@ function AppShell() {
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ background: '#ffffff', borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
-            <img src="/sagesure_logo.jpeg" alt="SageSure" style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 6 }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+            <img src="/favicon.png" alt="MapleSage" style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 6 }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 13, color: '#fff', lineHeight: 1 }}>SAGESURE</div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#fff', lineHeight: 1 }}>MAPLESAGE</div>
             <div style={{ fontSize: 10, color: D.navyText, lineHeight: 1.3, marginTop: 2 }}>Insurance Workspace</div>
           </div>
         </div>
@@ -469,7 +469,7 @@ function AppShell() {
           {expanded && (
             <div style={{ borderTop: `1px solid ${D.navyBorder}`, padding: '12px 16px' }}>
               <div style={{ fontSize: 10, color: D.navyMuted, lineHeight: 1.6 }}>
-                SageSure v2.0<br />
+                MapleSage v2.0<br />
                 <span style={{ color: D.green }}>● </span>All systems operational
               </div>
             </div>

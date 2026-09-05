@@ -1,0 +1,179 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sagesure-us
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: sagesure-us
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - { name: POSTGRES_USER, value: insurance }
+            - { name: POSTGRES_PASSWORD, value: insurance_local_dev }
+            - { name: POSTGRES_DB, value: insurance }
+          ports: [{ containerPort: 5432 }]
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "insurance"] }
+            initialDelaySeconds: 3
+            periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: sagesure-us
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insurance-api
+  namespace: sagesure-us
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: insurance-api }
+  template:
+    metadata:
+      labels: { app: insurance-api }
+    spec:
+      containers:
+        - name: insurance-api
+          image: sagesure-us-insurance-api:20260829-full
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3000 }]
+          env:
+            - { name: PORT, value: "3000" }
+            - { name: RUST_LOG, value: "info" }
+            - { name: DATABASE_URL, value: "postgres://insurance:insurance_local_dev@postgres:5432/insurance" }
+            - { name: FNOL_NATIVE, value: "true" }
+            - { name: UW_NATIVE, value: "true" }
+            - { name: AZURE_ENTRA_TENANT_ID, value: "e9394f90-446d-41dd-8c8c-98ac08c5f090" }
+            - { name: AZURE_ENTRA_AUDIENCE, value: "api://65ee45ec-2acb-4fd8-98fd-e96aa2fe8e5c" }
+            - { name: AZURE_ENTRA_CONSUMER_TENANT_ID, value: "55da926b-51c3-4304-b20e-5ec18b254500" }
+            - { name: AZURE_ENTRA_CONSUMER_AUDIENCE, value: "api://1c7d82c6-6ee6-41a4-ba42-fc1ae810b40a" }
+            - { name: AZURE_ENTRA_CONSUMER_AUTHORITY_HOST, value: "sagesureconsumer.ciamlogin.com" }
+            - { name: DELEGATE_ROUTES, value: "" }
+            - { name: STORAGE_ACCOUNT_NAME, value: "local-placeholder" }
+          readinessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: insurance-api
+  namespace: sagesure-us
+spec:
+  selector: { app: insurance-api }
+  ports: [{ port: 3000, targetPort: 3000 }]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: sagesure-us
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: frontend }
+  template:
+    metadata:
+      labels: { app: frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: sagesure-us-frontend:20260829-full
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3000 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: sagesure-us
+spec:
+  selector: { app: frontend }
+  ports: [{ port: 3000, targetPort: 3000 }]
+
+---
+# sesure-us-frontend has no built-in /api proxy (confirmed: server.js just
+# serves static files) -- production handles /api routing at the ingress
+# layer. Reproduce that here with a tiny nginx reverse-proxy, exposed via
+# NodePort 30081 (mapped to host 8081 by the kind cluster config), same
+# same-origin pattern production uses, matching CLAUDE.md's real ingress
+# rules (/api/* -> insurance-api, / -> frontend).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proxy-nginx-conf
+  namespace: sagesure-us
+data:
+  default.conf: |
+    server {
+      listen 80;
+      location /api/ {
+        proxy_pass http://insurance-api:3000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header Authorization $http_authorization;
+      }
+      location / {
+        proxy_pass http://frontend:3000/;
+        proxy_set_header Host $host;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxy
+  namespace: sagesure-us
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: proxy }
+  template:
+    metadata:
+      labels: { app: proxy }
+    spec:
+      containers:
+        - name: proxy
+          image: nginx:1.27-alpine
+          ports: [{ containerPort: 80 }]
+          volumeMounts:
+            - { name: conf, mountPath: /etc/nginx/conf.d }
+      volumes:
+        - name: conf
+          configMap: { name: proxy-nginx-conf }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy
+  namespace: sagesure-us
+spec:
+  type: NodePort
+  selector: { app: proxy }
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30081

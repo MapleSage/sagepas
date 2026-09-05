@@ -32,3 +32,4 @@ package-lock.json.tmp
 .idea/
 .claw/
 *.log
+.env.local.secrets
