@@ -190,7 +190,7 @@ async fn main() -> anyhow::Result<()> {
         // default "reqwest/x.y.z" User-Agent outright (403 managed
         // challenge) -- confirmed live from sagesure-us's identical client,
         // independent of TLS backend. Any non-default UA clears it.
-        .user_agent("SageSure-HubSpot-Bridge/1.0")
+        .user_agent("MapleSage-HubSpot-Bridge/1.0")
         .build()?;
 
     let cu_client = if config.content_understanding_endpoint.trim().is_empty() {

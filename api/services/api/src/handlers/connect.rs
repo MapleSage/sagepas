@@ -1,4 +1,4 @@
-//! GIA -- the SageSure AI assistant. Ported from sagesure-us's
+//! GIA -- MapleSage's AI assistant. Ported from sagesure-us's
 //! `handlers/gateway.rs::connect_chat`/`connect_memory`/`connect_history`,
 //! which sagepas had no equivalent of at all (confirmed by grep: zero
 //! references anywhere, backend or frontend, before this).
@@ -171,7 +171,7 @@ pub async fn chat(
 
     let mut system = if body.system_prompt.is_empty() {
         format!(
-            "You are SageGIA, SageSure AI assistant. Tab: {}. Be concise and helpful.{}",
+            "You are SageGIA, MapleSage's AI assistant. Tab: {}. Be concise and helpful.{}",
             if body.tab.is_empty() { "dashboard" } else { &body.tab },
             kb_context
         )

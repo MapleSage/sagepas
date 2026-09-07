@@ -1,4 +1,4 @@
-// GIA -- the SageSure AI assistant. Ported from sagesure-us's
+// GIA -- MapleSage's AI assistant. Ported from sagesure-us's
 // src/components/FloatingChat.tsx, which sagepas had no equivalent of at
 // all (confirmed by grep before this port existed). Simplified: no
 // multi-language system (sagepas has none) and no per-tab specialized

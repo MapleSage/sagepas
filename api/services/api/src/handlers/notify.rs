@@ -31,10 +31,10 @@ use domain::auth::PasRole;
 
 const STAFF_ROLES: &[PasRole] = &[PasRole::Admin, PasRole::Agent, PasRole::Underwriter];
 
-/// The SageSure claims-intake flow, published in the WhatsApp Business
-/// Manager under the SageSure AI number. `CLAIM_TYPE` is its first screen.
-const SAGESURE_CLAIM_FLOW_ID: &str = "1651698452817963";
-const SAGESURE_CLAIM_FLOW_FIRST_SCREEN: &str = "CLAIM_TYPE";
+/// The MapleSage claims-intake flow, published in the WhatsApp Business
+/// Manager under the MapleSage AI number. `CLAIM_TYPE` is its first screen.
+const CLAIMS_FLOW_ID: &str = "1651698452817963";
+const CLAIMS_FLOW_FIRST_SCREEN: &str = "CLAIM_TYPE";
 
 fn not_configured(name: &str) -> Response {
     (
@@ -81,7 +81,7 @@ fn default_flow_cta() -> String {
 }
 
 fn default_flow_body() -> String {
-    "Tap below to file your claim with SageSure — it only takes a couple of minutes.".to_string()
+    "Tap below to file your claim with MapleSage — it only takes a couple of minutes.".to_string()
 }
 
 #[derive(Deserialize)]
@@ -110,8 +110,8 @@ pub async fn whatsapp_send_flow(
         return not_configured("whatsapp");
     };
 
-    let flow_id = req.flow_id.as_deref().unwrap_or(SAGESURE_CLAIM_FLOW_ID);
-    let first_screen = req.first_screen.as_deref().unwrap_or(SAGESURE_CLAIM_FLOW_FIRST_SCREEN);
+    let flow_id = req.flow_id.as_deref().unwrap_or(CLAIMS_FLOW_ID);
+    let first_screen = req.first_screen.as_deref().unwrap_or(CLAIMS_FLOW_FIRST_SCREEN);
 
     match client
         .send_flow(&req.phone, flow_id, first_screen, &req.flow_cta, &req.body_text)
@@ -234,8 +234,8 @@ pub async fn whatsapp_webhook_receive(
                 match client
                     .send_flow(
                         &from,
-                        SAGESURE_CLAIM_FLOW_ID,
-                        SAGESURE_CLAIM_FLOW_FIRST_SCREEN,
+                        CLAIMS_FLOW_ID,
+                        CLAIMS_FLOW_FIRST_SCREEN,
                         &default_flow_cta(),
                         &default_flow_body(),
                     )

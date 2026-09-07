@@ -31,7 +31,7 @@ import LoginGate from './auth/LoginGate'
 import RoleGuard from './auth/RoleGuard'
 import { ROLE_LABELS } from './auth/roles'
 
-// ── Fluent UI brand — SageSure blue (light theme) ───────────────────────────
+// ── Fluent UI brand — MapleSage blue (light theme) ──────────────────────────
 const brand: BrandVariants = {
   10: '#030A12', 20: '#061423', 30: '#0A2035', 40: '#0D2B3D',
   50: '#103750', 60: '#144264', 70: '#174D6D', 80: '#216884',
@@ -264,10 +264,10 @@ function ProfileDropdown() {
   const roleSummary = roles.length ? roles.map(r => ROLE_LABELS[r]).join(', ') : 'No PAS role assigned'
 
   const links = [
-    { label: 'MapleSage Website', url: 'https://sagesure.io/' },
-    { label: 'Privacy Policy',   url: 'https://sagesure.io/privacy-policy' },
-    { label: 'Terms of Use',     url: 'https://sagesure.io/term-of-use' },
-    { label: 'Data Policy',      url: 'https://sagesure.io/data-policy' },
+    { label: 'MapleSage Website', url: 'https://maplesage.com/' },
+    { label: 'Privacy Policy',   url: 'https://maplesage.com/privacy-policy' },
+    { label: 'Terms of Use',     url: 'https://maplesage.com/term-of-use' },
+    { label: 'Data Policy',      url: 'https://maplesage.com/data-policy' },
   ]
 
   return (

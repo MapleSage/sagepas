@@ -83,7 +83,7 @@ spec:
     spec:
       containers:
         - name: sagepas-api
-          image: sagepas-api:20260829-migrations-fixed
+          image: sagepas-api:20260829-full
           imagePullPolicy: IfNotPresent
           ports: [{ containerPort: 3000 }]
           env:
@@ -129,7 +129,7 @@ spec:
     spec:
       containers:
         - name: sagepas-web
-          image: sagepas-web:20260829-full
+          image: sagepas-web:20260903-logo
           imagePullPolicy: IfNotPresent
           ports: [{ containerPort: 8080 }]
 ---
