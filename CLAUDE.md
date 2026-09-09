@@ -374,6 +374,61 @@ Rationale, recorded so it isn't re-litigated:
 
 ---
 
+## Local Docker demo (2026-09-09)
+
+The real app, real auth, real Postgres schema — running locally, on demand,
+not deployed anywhere by default. `sageinsureacr6a05ef1f` (the ACR both
+images used to be pulled from) was deleted with the rest of `sageinsure-rg`
+in the 2026-09-06 teardown, so build locally instead:
+
+```bash
+docker build -t sagepas-api:demo -f api/Dockerfile.api api/
+docker build -t sagepas-web:demo -f web/Dockerfile \
+  --build-arg VITE_AZURE_CLIENT_ID=d1ba82a8-a4e3-4f52-ab5f-2aa8ebee98e1 \
+  --build-arg VITE_AZURE_TENANT_ID=e9394f90-446d-41dd-8c8c-98ac08c5f090 \
+  --build-arg VITE_API_SCOPE=api://d1ba82a8-a4e3-4f52-ab5f-2aa8ebee98e1/access_as_user \
+  --build-arg VITE_REDIRECT_URI=https://pas.maplesage.com/auth/callback \
+  web/
+docker compose -f docker-compose.local.yml up -d
+```
+
+Verified 2026-09-09: both images build clean (api ~2.5min/235MB, web
+~2min), all 22 migrations apply on startup, the real login gate renders
+("Sign in with Microsoft" — MSAL, same as production), and the real
+`/api/v1/uw/*` endpoints return correctly-shaped data end to end.
+
+**One seeded demo record, not a mock API.** `uw_jobs` is empty otherwise —
+there's no completed UW run in this environment yet. `deploy/local/seed-uw-demo.sql`
+inserts one real job (`job-c70f11524c6746d08a3f7e2db963cb11`, sourced from
+the NVMe cosmos backup of the old standalone UW workbench — a genuinely
+incomplete ACORD submission the pipeline correctly flagged for more
+documents rather than scoring, shown honestly including the absent score)
+directly into the real table, in the real schema. The UI reads it through
+the real `/uw/jobs` and `/uw/:id/trace` handlers — nothing about the API
+or frontend is mocked. Regenerate from source with
+`python3 deploy/local/generate-seed-uw-demo.py > deploy/local/seed-uw-demo.sql`;
+`deploy/local/uw-demo-source.json` is the underlying extracted data.
+
+```bash
+docker exec -i sagepas-postgres-1 psql -U sagepas -d sagepas < deploy/local/seed-uw-demo.sql
+```
+
+**Auth is untouched, on purpose.** The frontend's `LoginGate` has no
+dev-auth bypass — "Sign in with Microsoft" against the real Entra tenant
+is the only way into the actual app, same as production. The backend's
+`DEV_LOCAL_AUTH_ENABLED=true` HS256 path (`POST /api/v1/auth/register`,
+`/login`) exists for API-level/curl testing only and was never wired into
+the UI — don't add one.
+
+**What doesn't work locally, and why that's expected, not a bug**:
+`AZURE_OPENAI_ENDPOINT`/`CONTENT_UNDERSTANDING_ENDPOINT` in
+`docker-compose.local.yml` point at resources deleted in the same
+teardown. Anything reading already-stored data works fully. New document
+extraction or new chat completions need a real AI Foundry endpoint
+substituted first.
+
+---
+
 ## General
 - Follow existing patterns in the codebase
 - Use proper component structure based on component `type` in the `-hsmeta.json` file

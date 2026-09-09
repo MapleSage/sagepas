@@ -1,17 +1,26 @@
 version: '3.8'
 
-# Local, single-machine deployment of sagepas -- replaces AKS/aks-openclaw-cid
-# compute for this service. Uses the same images already built and pushed
-# to ACR today (sagepas-api:20260829-full, sagepas-web:20260829-full),
-# pointed at a local Postgres/Redis instead of pg-openclaw-cid and the
-# in-cluster Redis. Azure OpenAI / Content Understanding / HubSpot stay
-# real external calls (per Parvind: keeping a single AI Foundry resource,
-# undecided beyond that) -- only compute moves local, not those services.
+# Local, single-machine deployment of sagepas. The real app, real auth,
+# real Postgres schema -- not a mock. Images are built locally
+# (docker build -t sagepas-api:demo / sagepas-web:demo -- see CLAUDE.md),
+# not pulled from ACR: sageinsureacr6a05ef1f was deleted along with the
+# rest of sageinsure-rg in the 2026-09-06 teardown, so registry references
+# no longer resolve.
 #
-# DEV_LOCAL_AUTH_ENABLED=true bypasses needing real Entra tokens for local
-# testing (HS256 dev-local auth path, see auth_extract.rs/entra_auth.rs) --
-# set to false and supply real Entra config below if you want to test the
-# actual staff/consumer login flow locally.
+# AZURE_OPENAI_ENDPOINT / CONTENT_UNDERSTANDING_ENDPOINT below point at
+# resources that were also deleted in that teardown. Everything that reads
+# already-stored data (job queues, trace views, policy/quote/claim
+# records) works fully against local Postgres. Anything that calls out to
+# those two endpoints live (new document extraction, new chat completions)
+# will fail until a real AI Foundry endpoint is substituted -- that's
+# expected, not a bug to route around here.
+#
+# DEV_LOCAL_AUTH_ENABLED=true enables the backend's HS256 dev-local login
+# path (POST /api/v1/auth/register, /login) for API-level testing --
+# curl/scripts can get a token this way. The frontend has no UI for it by
+# design (LoginGate only offers "Sign in with Microsoft") -- real staff/
+# consumer sign-in through Entra is the only way into the actual app, and
+# that's intentional, not a gap to fill in.
 
 services:
   postgres:
@@ -41,7 +50,7 @@ services:
       retries: 10
 
   sagepas-api:
-    image: sageinsureacr6a05ef1f.azurecr.io/sagepas-api:20260829-migrations-fixed
+    image: sagepas-api:demo
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,11 +78,11 @@ services:
       - ./.env.local.secrets
 
   web:
-    image: sageinsureacr6a05ef1f.azurecr.io/sagepas-web:20260829-full
+    image: sagepas-web:demo
     depends_on:
       - sagepas-api
     ports:
-      - "8080:8080"
+      - "8090:8080"
 
 volumes:
   sagepas_local_pg:
