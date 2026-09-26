@@ -31,14 +31,14 @@ import LoginGate from './auth/LoginGate'
 import RoleGuard from './auth/RoleGuard'
 import { ROLE_LABELS } from './auth/roles'
 
-// ── Fluent UI brand — MapleSage blue (light theme) ──────────────────────────
+// ── Fluent UI brand — AKETUD blue (light theme) ─────────────────────────────
 const brand: BrandVariants = {
   10: '#030A12', 20: '#061423', 30: '#0A2035', 40: '#0D2B3D',
   50: '#103750', 60: '#144264', 70: '#174D6D', 80: '#216884',
   90: '#2C839A', 100: '#3D9CA2', 110: '#60B2B7', 120: '#8FC8CB',
   130: '#BFDDE0', 140: '#DCECEF', 150: '#ECF5F8', 160: '#F7FBFD',
 }
-const sageSureTheme = createLightTheme(brand)
+const aketudTheme = createLightTheme(brand)
 
 const PAS_APP_ROLES = ['admin', 'agent', 'underwriter', 'customer'] as const
 
@@ -258,13 +258,13 @@ function ProfileDropdown() {
   }, [open])
 
   const { account, roles, signOut } = useAuth()
-  const name = account?.name || account?.username || 'MapleSage User'
+  const name = account?.name || account?.username || 'AKETUD User'
   const email = account?.username || ''
   const initials = name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
   const roleSummary = roles.length ? roles.map(r => ROLE_LABELS[r]).join(', ') : 'No PAS role assigned'
 
   const links = [
-    { label: 'MapleSage Website', url: 'https://maplesage.com/' },
+    { label: 'AKETUD Website', url: 'https://aketud.com/' }, // TODO: legal pages below 404 on aketud.com -- repoint once published there
     { label: 'Privacy Policy',   url: 'https://maplesage.com/privacy-policy' },
     { label: 'Terms of Use',     url: 'https://maplesage.com/term-of-use' },
     { label: 'Data Policy',      url: 'https://maplesage.com/data-policy' },
@@ -404,13 +404,10 @@ function AppShell() {
       <header style={{ flexShrink: 0, height: 56, display: 'flex', alignItems: 'center', background: D.navy, borderBottom: `1px solid ${D.navyBorder}`, padding: '0 16px', gap: 16, zIndex: 100 }}>
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <div style={{ background: '#ffffff', borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
-            <img src="/favicon.png" alt="MapleSage" style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 6 }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+          <div style={{ background: '#ffffff', borderRadius: 10, padding: '4px 10px', height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
+            <img src="/brand/aketud-logo-black.svg" alt="AKETUD" style={{ height: 30, width: 'auto', objectFit: 'contain' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
           </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 13, color: '#fff', lineHeight: 1 }}>MAPLESAGE</div>
-            <div style={{ fontSize: 10, color: D.navyText, lineHeight: 1.3, marginTop: 2 }}>Insurance Workspace</div>
-          </div>
+          <div style={{ fontSize: 10, color: D.navyText, lineHeight: 1.3 }}>Insurance Workspace</div>
         </div>
 
         {/* Search */}
@@ -469,7 +466,7 @@ function AppShell() {
           {expanded && (
             <div style={{ borderTop: `1px solid ${D.navyBorder}`, padding: '12px 16px' }}>
               <div style={{ fontSize: 10, color: D.navyMuted, lineHeight: 1.6 }}>
-                MapleSage v2.0<br />
+                AKETUD v2.0<br />
                 <span style={{ color: D.green }}>● </span>All systems operational
               </div>
             </div>
@@ -510,7 +507,7 @@ function AppContent() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <FluentProvider theme={sageSureTheme}>
+      <FluentProvider theme={aketudTheme}>
         <AuthProvider>
           <ActiveRecordProvider>
             <AppContent />

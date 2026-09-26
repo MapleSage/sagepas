@@ -111,7 +111,7 @@ fn generate_us_declaration(
     };
 
     // ── Header ───────────────────────────────────────────────────────────────
-    layer.use_text("SageSure Insurance", 22.0, Mm(20.0), Mm(258.0), &font_bold);
+    layer.use_text("AKETUD Insurance", 22.0, Mm(20.0), Mm(258.0), &font_bold);
     layer.use_text("DECLARATIONS PAGE", 14.0, Mm(20.0), Mm(248.0), &font_bold);
     layer.use_text(
         &format!("Policy Number: {}", policy.policy_number),
@@ -194,7 +194,7 @@ fn generate_us_declaration(
 
     // ── Footer ────────────────────────────────────────────────────────────────
     layer.use_text(
-        "SageSure Insurance | info@sagesure.io | This document is computer-generated.",
+        "AKETUD Insurance | info@aketud.com | This document is computer-generated.",
         8.0,
         Mm(20.0),
         Mm(12.0),
@@ -222,7 +222,7 @@ fn generate_india_schedule(
 
     // ── Header ────────────────────────────────────────────────────────────────
     layer.use_text(
-        "SageSure Insurance India",
+        "AKETUD Insurance India",
         20.0,
         Mm(20.0),
         Mm(273.0),
@@ -326,7 +326,7 @@ fn generate_india_schedule(
 
     // ── Footer ────────────────────────────────────────────────────────────────
     layer.use_text(
-        "SageSure Insurance India | info@sagesure.io | IRDAI Reg. No. XXXX",
+        "AKETUD Insurance India | info@aketud.com | IRDAI Reg. No. XXXX",
         8.0,
         Mm(20.0),
         Mm(12.0),

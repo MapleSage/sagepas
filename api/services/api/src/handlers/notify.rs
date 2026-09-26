@@ -31,8 +31,8 @@ use domain::auth::PasRole;
 
 const STAFF_ROLES: &[PasRole] = &[PasRole::Admin, PasRole::Agent, PasRole::Underwriter];
 
-/// The MapleSage claims-intake flow, published in the WhatsApp Business
-/// Manager under the MapleSage AI number. `CLAIM_TYPE` is its first screen.
+/// The AKETUD claims-intake flow, published in the WhatsApp Business
+/// Manager under the AKETUD AI number. `CLAIM_TYPE` is its first screen.
 const CLAIMS_FLOW_ID: &str = "1651698452817963";
 const CLAIMS_FLOW_FIRST_SCREEN: &str = "CLAIM_TYPE";
 
@@ -81,7 +81,7 @@ fn default_flow_cta() -> String {
 }
 
 fn default_flow_body() -> String {
-    "Tap below to file your claim with MapleSage — it only takes a couple of minutes.".to_string()
+    "Tap below to file your claim with AKETUD — it only takes a couple of minutes.".to_string()
 }
 
 #[derive(Deserialize)]

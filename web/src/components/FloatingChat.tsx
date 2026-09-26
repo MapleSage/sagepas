@@ -1,4 +1,4 @@
-// GIA -- MapleSage's AI assistant. Ported from sagesure-us's
+// GIA -- AKETUD's AI assistant. Ported from the sibling insurance app's
 // src/components/FloatingChat.tsx, which sagepas had no equivalent of at
 // all (confirmed by grep before this port existed). Simplified: no
 // multi-language system (sagepas has none) and no per-tab specialized
@@ -57,7 +57,7 @@ function MarkdownText({ text, dark }: { text: string; dark?: boolean }) {
   return <div style={{ fontSize: 13 }}>{elements}</div>
 }
 
-const DEFAULT_SYSTEM_PROMPT = 'You are SageGIA, the MapleSage AI assistant for the agent and policy administration workspace. Be concise and helpful, and use markdown headings/bullets where useful.'
+const DEFAULT_SYSTEM_PROMPT = 'You are GIA, the AKETUD AI assistant for the agent and policy administration workspace. Be concise and helpful, and use markdown headings/bullets where useful.'
 
 export function FloatingChat({ activeTab }: { activeTab: string }) {
   const activeRecord = useActiveRecord()
@@ -153,7 +153,7 @@ export function FloatingChat({ activeTab }: { activeTab: string }) {
           }}>
             <div>
               <div style={{ color: '#fff', fontWeight: 700, fontSize: 13, lineHeight: 1 }}>
-                SageGIA · AI Assistant
+                GIA · AI Assistant
               </div>
               <div style={{ color: '#93c5fd', fontSize: 11, marginTop: 3 }}>
                 {activeRecord?.surface === activeTab ? `Reading ${activeRecord.surface.toUpperCase()} record ${activeRecord.recordId}` : 'SagePAS'}
@@ -262,7 +262,7 @@ export function FloatingChat({ activeTab }: { activeTab: string }) {
 
       <button
         onClick={() => setOpen(v => !v)}
-        title="SageGIA — AI Assistant"
+        title="GIA — AI Assistant"
         style={{
           position: 'fixed', bottom: 24, right: 24, zIndex: 1001,
           width: 54, height: 54, borderRadius: '50%',
