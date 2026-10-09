@@ -405,7 +405,7 @@ function AppShell() {
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ background: '#ffffff', borderRadius: 10, padding: '4px 10px', height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
-            <img src="/brand/aketud-logo-black.svg" alt="AKETUD" style={{ height: 30, width: 'auto', objectFit: 'contain' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+            <img src="/brand/aketud-logo-blue.png" alt="AKETUD" style={{ height: 28, width: 'auto', objectFit: 'contain' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
           </div>
           <div style={{ fontSize: 10, color: D.navyText, lineHeight: 1.3 }}>Insurance Workspace</div>
         </div>

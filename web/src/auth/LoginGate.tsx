@@ -41,7 +41,7 @@ export default function LoginGate({ children }: { children: ReactNode }) {
   return (
     <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1.1fr .9fr', background: D.bg }}>
       <div style={{ background: D.navy, color: '#fff', padding: '9vh 7vw', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <img src="/brand/aketud-logo-white.svg" alt="AKETUD" style={{ width: 260, marginBottom: 28 }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+        <img src="/brand/aketud-logo-white.png" alt="AKETUD" style={{ width: 260, marginBottom: 28 }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
         <h1 style={{ fontSize: 42, lineHeight: 1.08, margin: '18px 0' }}>Policy Administration System</h1>
         <p style={{ color: D.navyText, maxWidth: 520, lineHeight: 1.7 }}>
           Native Rust quote, bind, issue, policy servicing, dealer and reporting workflows.
